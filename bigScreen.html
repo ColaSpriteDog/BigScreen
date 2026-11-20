@@ -9,15 +9,20 @@
     <style>
         /* ================= 基础重置与主题变量 ================= */
         :root {
-            --bg-color: #040e19;
-            --panel-bg: rgba(8, 27, 44, 0.94);
-            --border-color: #194057;
-            --text-main: #d5e8f3;
-            --text-sub: #8aabbf;
-            --cyan: #58dded;
-            --green: #52e2b0;
-            --orange: #ffb65c;
-            --red: #ff4d4f;
+            --bg-color: #101b2a;
+            --panel-bg: #203544;
+            --surface-raised: #294452;
+            --border-color: #3c5967;
+            --border-soft: rgba(168, 191, 205, 0.17);
+            --text-main: #e0eaf0;
+            --text-strong: #f0f5f7;
+            --text-sub: #a8bfcd;
+            --cyan: #5ad6da;
+            --green: #75e69a;
+            --yellow: #f0ce73;
+            --orange: #efa65b;
+            --red: #ee8585;
+            --inventory-number: #9ad9e2;
             --font-number: 'Bahnschrift', 'DIN Alternate', 'Consolas', monospace;
         }
 
@@ -26,8 +31,9 @@
         body {
             background-color: var(--bg-color);
             /* 低对比网格与顶部冷光提供层次，不影响数据阅读。 */
-            background-image: linear-gradient(rgba(75, 155, 185, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(75, 155, 185, 0.035) 1px, transparent 1px), radial-gradient(ellipse at 50% 0%, #12334a 0%, transparent 65%);
-            background-size: 48px 48px, 48px 48px, 100% 100%;
+            background-image: radial-gradient(ellipse at 50% -20%, rgba(66, 124, 146, 0.2), transparent 65%), linear-gradient(rgba(140, 185, 202, 0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(140, 185, 202, 0.018) 1px, transparent 1px);
+            background-size: 100% 100%, 48px 48px, 48px 48px;
+            background-repeat: no-repeat, repeat, repeat;
             color: var(--text-main);
             min-height: 100vh;
             overflow-y: auto; 
@@ -46,21 +52,20 @@
             flex-shrink: 0;
             position: relative;
             border-bottom: 1px solid var(--border-color);
-            background: linear-gradient(90deg, transparent 10%, rgba(88, 221, 237, 0.08) 50%, transparent 90%);
+            background: linear-gradient(90deg, transparent, rgba(90, 214, 218, 0.05), transparent);
         }
         /* 左侧品牌区替代装饰线，左右等宽网格保持主标题居中。 */
         .company-brand { width: clamp(160px, 17vw, 220px); max-width: 100%; min-width: 0; justify-self: start; padding: 6px 10px; background: #fff; border: 1px solid #d8e2e9; border-radius: 2px; }
         .company-logo { display: block; width: 100%; height: auto; }
-        header::after { content: ''; position: absolute; height: 2px; width: 34%; bottom: -1px; left: 33%; background: linear-gradient(90deg, transparent, var(--cyan), transparent); box-shadow: 0 0 16px rgba(88, 221, 237, 0.25); }
+        header::after { content: ''; position: absolute; height: 2px; width: 34%; bottom: -1px; left: 33%; background: linear-gradient(90deg, transparent, var(--cyan), transparent); opacity: 0.65; }
         header h1 {
             font-size: clamp(24px, 1.8vw, 34px);
-            color: #e4faff;
-            text-shadow: 0 0 20px rgba(88, 221, 237, 0.3);
+            color: var(--text-strong);
             letter-spacing: 5px;
             text-align: center;
             padding: 12px 34px;
-            border-top: 1px solid rgba(88, 221, 237, 0.42);
-            background: linear-gradient(180deg, rgba(88, 221, 237, 0.1), transparent);
+            border-top: 1px solid rgba(90, 214, 218, 0.42);
+            background: linear-gradient(180deg, rgba(90, 214, 218, 0.09), transparent);
             clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 100%, 0 100%);
         }
         header .time { font-size: 12px; color: var(--text-sub); text-align: right; font-family: var(--font-number); font-variant-numeric: tabular-nums; }
@@ -78,7 +83,7 @@
 
         /* 通用卡片样式 */
         .panel {
-            background: linear-gradient(135deg, rgba(43, 99, 122, 0.14), transparent 55%), var(--panel-bg);
+            background: linear-gradient(145deg, rgba(125, 177, 190, 0.055), transparent 58%), var(--panel-bg);
             border: 1px solid var(--border-color);
             border-radius: 2px;
             padding: 15px;
@@ -87,23 +92,25 @@
             flex-direction: column;
             min-width: 0;
             min-height: 0;
-            box-shadow: inset 0 1px 0 rgba(143, 225, 245, 0.06);
+            box-shadow: inset 0 1px 0 rgba(240, 245, 247, 0.035);
             clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
         }
         .panel::before {
             content: ''; position: absolute; top: 0; left: 0; width: 28px; height: 28px;
             border-top: 1px solid var(--cyan); border-left: 1px solid var(--cyan);
+            opacity: 0.55;
             pointer-events: none;
         }
         .panel::after {
             content: ''; position: absolute; bottom: 0; right: 0; width: 28px; height: 28px;
             border-bottom: 1px solid var(--cyan); border-right: 1px solid var(--cyan);
+            opacity: 0.55;
             pointer-events: none;
         }
         .panel-title {
             font-size: 16px;
             font-weight: bold;
-            color: #d9f4ff;
+            color: var(--text-strong);
             margin-bottom: 15px;
             padding-left: 10px;
             border-left: 2px solid var(--cyan);
@@ -123,27 +130,29 @@
         }
         
         .line-card { padding: 10px 15px; }
-        .line-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 9px; border-bottom: 1px solid rgba(88, 221, 237, 0.12); font-size: 15px; font-weight: bold; }
+        .line-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 9px; border-bottom: 1px solid var(--border-soft); font-size: 15px; font-weight: bold; }
         .line-header > span, .line-indicators { display: flex; align-items: center; gap: 8px; }
         .line-icon { width: 19px; height: 19px; color: var(--cyan); flex-shrink: 0; }
         .symbol-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
         .line-index { font: 12px var(--font-number); color: var(--text-sub); letter-spacing: 2px; }
-        .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px rgba(82, 226, 176, 0.5); animation: status-breathe 3s ease-in-out infinite; }
-        .is-maintenance .status-dot { background: var(--orange); box-shadow: 0 0 8px rgba(255, 182, 92, 0.4); animation: none; }
+        .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px rgba(117, 230, 154, 0.3); animation: status-breathe 3s ease-in-out infinite; }
+        .is-maintenance .status-dot { background: var(--orange); box-shadow: 0 0 8px rgba(239, 166, 91, 0.4); animation: none; }
         
         .data-list { font-size: 13px; line-height: 1.8; color: var(--text-sub); }
         .data-list div { display: flex; justify-content: space-between; }
-        .data-list span.val { color: #fff; font-weight: bold; }
+        .data-list span.val { color: var(--text-strong); font-weight: bold; }
         .data-list span.warn { color: var(--orange); }
         /* 等宽数字保持位数对齐，今日产量作为首要读数。 */
         .data-list span.val, .inv-summary .num, .inv-table .val, .shipment-summary-value, .kpi-val, .safety-text .num { font-family: var(--font-number); font-variant-numeric: tabular-nums; }
-        .data-list > div:nth-child(2) > .val { font-size: 20px; line-height: 1.3; color: var(--cyan); }
+        .data-list > div:nth-child(2) > .val { font-size: 20px; line-height: 1.3; color: var(--green); }
+        /* 今日产量与月度累计采用不同强调色，便于快速区分时间范围。 */
+        .data-list > div:nth-child(3) > .val { color: var(--yellow); }
         
-        .progress-bar { height: 4px; background: #123; margin-top: 10px; border-radius: 2px; overflow: hidden; }
-        .progress-inner { height: 100%; background: linear-gradient(90deg, #21637e, var(--cyan)); width: 96%; position: relative; }
-        .progress-inner::after { content: ''; position: absolute; right: 0; top: 0; width: 5px; height: 100%; background: #d5faff; box-shadow: 0 0 8px var(--cyan); }
-        .progress-inner.warn { background: linear-gradient(90deg, #725129, var(--orange)); width: 91%; }
-        .progress-inner.warn::after { background: #ffe2bb; box-shadow: 0 0 8px var(--orange); }
+        .progress-bar { height: 4px; background: var(--surface-raised); margin-top: 10px; border-radius: 2px; overflow: hidden; }
+        .progress-inner { height: 100%; background: linear-gradient(90deg, #39736c, var(--green)); width: 96%; position: relative; }
+        .progress-inner::after { content: ''; position: absolute; right: 0; top: 0; width: 5px; height: 100%; background: var(--text-strong); }
+        .progress-inner.warn { background: linear-gradient(90deg, #8d653e, var(--orange)); width: 91%; }
+        .progress-inner.warn::after { background: var(--text-strong); }
 
         /* ================= 2. 中间行 ================= */
         
@@ -156,51 +165,54 @@
         
         .inv-summary {
             display: flex; justify-content: space-around; margin-bottom: 10px; text-align: center;
-            background: rgba(0, 242, 254, 0.05); border-radius: 2px; padding: 8px 0; border: 1px solid rgba(0, 242, 254, 0.1);
+            background: var(--surface-raised); border-radius: 2px; padding: 8px 0; border: 1px solid var(--border-color);
             flex-shrink: 0;
         }
         .inv-summary .inv-label { font-size: 13px; color: var(--text-sub); margin-bottom: 5px; }
-        .inv-summary .num { font-size: 28px; color: var(--cyan); font-weight: bold; text-shadow: 0 0 16px rgba(88,221,237,0.15); }
+        .inv-summary .num { font-size: 28px; color: var(--yellow); font-weight: bold; }
         .inv-summary .num .unit { font-size: 12px; color: var(--text-sub); margin-left: 4px; font-weight: normal; text-shadow: none; }
         
         .inv-details-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
 
-        .inv-section { background: rgba(0, 242, 254, 0.02); border: 1px solid rgba(0, 242, 254, 0.1); border-radius: 2px; padding: 8px 12px; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+        .inv-section { background: rgba(12, 24, 35, 0.24); border: 1px solid rgba(168, 191, 205, 0.22); border-radius: 2px; padding: 8px 12px; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
         .section-title { font-size: 14px; color: var(--cyan); margin-bottom: 8px; font-weight: bold; display: flex; align-items: center; flex-shrink: 0; }
         .section-title::before { content: ''; display: inline-block; width: 4px; height: 14px; background: var(--cyan); margin-right: 8px; border-radius: 2px; }
 
         .inv-table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-sub); }
-        .inv-table th { text-align: left; padding: 5px 0; border-bottom: 1px solid rgba(0, 242, 254, 0.1); font-weight: normal; }
-        .inv-table td { padding: 5px 0; border-bottom: 1px dashed rgba(11, 64, 101, 0.5); }
+        .inv-table th { text-align: left; padding: 5px 0; border-bottom: 1px solid rgba(90, 214, 218, 0.1); font-weight: normal; }
+        .inv-table td { padding: 5px 0; border-bottom: 1px dashed rgba(168, 191, 205, 0.13); }
         .inv-table tr:last-child td { border-bottom: none; }
-        .inv-table th:nth-child(2), .inv-table td:nth-child(2),
-        .inv-table th:nth-child(3), .inv-table td:nth-child(3) { text-align: right; }
-        .inv-table .val { color: #fff; font-weight: bold; }
-        .inv-table .date { color: #888; }
-        /* 相关字段上下排布，每行保留独立物料、仓库与单位，不产生横向滚动。 */
-        .material-table-wrap { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; position: relative; scrollbar-width: thin; scrollbar-color: #245b72 transparent; scroll-behavior: auto; }
-        .material-table-wrap thead th { position: sticky; top: 0; z-index: 1; background: #0a2234; }
+        .inv-table .val { color: var(--inventory-number); font-weight: bold; }
+        .inv-table .date { color: var(--text-sub); }
+        /* 物料、仓库、规格、备注及各数值独立成列，短字段按内容收紧。 */
+        .material-table-wrap { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent; scroll-behavior: auto; }
+        .material-table-wrap thead th { position: sticky; top: 0; z-index: 1; background: #2a414f; }
         .material-table-wrap:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
-        .material-table, .semi-table { table-layout: fixed; min-width: 0; font-size: 12px; }
-        .material-table th, .semi-table th { font-size: 11px; line-height: 1.5; }
-        .inv-table.material-table th, .inv-table.material-table td { text-align: left; padding: 7px 4px; overflow-wrap: anywhere; }
-        .inv-table.material-table .val, .inv-table.material-table .material-number { text-align: right; }
+        .material-table, .semi-table { table-layout: auto; min-width: 0; font-size: 12px; }
+        .material-table col, .semi-table col { width: 1%; }
+        .material-table col:nth-child(3), .semi-table col:nth-child(2) { width: auto; }
+        .material-table th, .semi-table th { font-size: 11px; line-height: 18px; color: var(--text-sub); white-space: nowrap; }
+        .inv-table.material-table th, .inv-table.material-table td,
+        .inv-table.semi-table th, .inv-table.semi-table td { text-align: left; padding: 8px 5px; line-height: 18px; overflow-wrap: anywhere; }
+        .inv-table.material-table th:first-child, .inv-table.material-table td:first-child,
+        .inv-table.semi-table th:first-child, .inv-table.semi-table td:first-child { padding-left: 3px; }
+        .inv-table.material-table th:last-child, .inv-table.material-table td:last-child,
+        .inv-table.semi-table th:last-child, .inv-table.semi-table td:last-child { padding-right: 3px; }
+        .inv-table.material-table .material-number { text-align: right; white-space: nowrap; }
         .material-table .material-spec { font-family: var(--font-number); }
-        .material-table .empty { color: #657f92; }
+        .material-table .empty { color: var(--text-sub); }
         /* 左右件按截图分组，仓库与单位逐行记录以支持不同库存来源。 */
-        .inv-table.semi-table th, .inv-table.semi-table td { text-align: left; padding: 7px 4px; overflow-wrap: anywhere; }
-        .inv-table.semi-table .semi-group { color: var(--cyan); text-align: center; padding: 0 4px 0 0; border-right: 1px solid rgba(88, 221, 237, 0.12); }
+        .inv-table.semi-table .semi-group { color: var(--cyan); text-align: center; padding-right: 7px; border-right: 1px solid rgba(90, 214, 218, 0.12); }
         .inv-table.semi-table .semi-spec { text-align: center; font-family: var(--font-number); }
-        .inv-table.semi-table .val { text-align: right; }
-        .inventory-sub { display: block; margin-top: 3px; color: var(--text-sub); font: 10px/1.5 'Microsoft YaHei', sans-serif; }
+        .inv-table.semi-table .val { text-align: right; white-space: nowrap; }
         .inventory-unit { margin-left: 3px; color: var(--text-sub); font: 10px 'Microsoft YaHei', sans-serif; }
-        .inventory-sub-label { color: var(--text-sub); font-size: 10px; }
-        .semi-table .semi-group-start td { border-top: 1px solid rgba(88, 221, 237, 0.25); }
-        /* 按用户截图保留红色标注，仅作用于对应表格字段，缺失值仍保持灰色。 */
-        .material-table tbody .material-spec,
-        .material-table tbody .val, .material-table .material-remark,
-        .material-table .material-weight-heading,
-        .semi-table tbody .semi-name, .semi-table tbody .semi-spec, .semi-table tbody .val { color: #ff0000; }
+        .semi-table .semi-group-start td { border-top: 1px solid rgba(90, 214, 218, 0.25); }
+        /* 普通库存使用灰白、灰蓝与冰青区分层次，红色保留给真实异常。 */
+        .warehouse-field, .material-name, .material-remark,
+        .semi-table .semi-group, .semi-table .semi-spec { white-space: nowrap; overflow-wrap: normal; }
+        .warehouse-field, .material-table .material-remark { color: var(--text-sub); font-size: 11px; }
+        .material-name, .semi-name { color: var(--text-main); }
+        .inv-table.material-table .cut-field { text-align: right; color: var(--text-sub); white-space: nowrap; }
 
         /* --- 中间：图表区域 --- */
         .chart-panel { grid-column: 2 / 3; grid-row: 2 / 3; padding: 15px; }
@@ -220,12 +232,12 @@
             flex-shrink: 0;
         }
         .shipment-summary-label { font-size: 12px; color: var(--text-sub); margin-bottom: 8px; white-space: nowrap; }
-        .shipment-summary-value { font-size: clamp(18px, 1.65vw, 30px); color: #e4f4ff; font-weight: bold; white-space: nowrap; }
-        .shipment-summary > div + div { border-left: 1px solid rgba(88, 221, 237, 0.12); }
-        .shipment-summary > div:nth-child(2) .shipment-summary-value { color: var(--cyan); }
+        .shipment-summary-value { font-size: clamp(18px, 1.65vw, 30px); color: var(--text-strong); font-weight: bold; white-space: nowrap; }
+        .shipment-summary > div + div { border-left: 1px solid var(--border-soft); }
+        .shipment-summary > div:nth-child(2) .shipment-summary-value { color: var(--yellow); }
         .shipment-summary > div:nth-child(3) .shipment-summary-value { color: var(--green); }
         /* 横向柱形为件号和末端数量留出空间，八条数据完整展示。 */
-        .shipment-chart { flex: 1; width: 100%; min-height: 260px; border-top: 1px solid rgba(88, 221, 237, 0.16); }
+        .shipment-chart { flex: 1; width: 100%; min-height: 260px; border-top: 1px solid var(--border-soft); }
 
         /* ================= 3. 底部行 ================= */
         
@@ -244,8 +256,8 @@
             flex: 1; 
         }
         .kpi-card { 
-            background: linear-gradient(120deg, rgba(88, 221, 237, 0.05), transparent);
-            border: 1px solid rgba(88, 221, 237, 0.12);
+            background: var(--surface-raised);
+            border: 1px solid rgba(168, 191, 205, 0.16);
             border-radius: 2px;
             padding: 8px; 
             display: flex; 
@@ -254,13 +266,15 @@
             align-items: center; 
             transition: background-color 0.2s, border-color 0.2s;
         }
-        .kpi-card:hover { background-color: rgba(88, 221, 237, 0.05); border-color: rgba(88, 221, 237, 0.35); }
+        .kpi-card:hover { background-color: rgba(90, 214, 218, 0.1); border-color: var(--cyan); }
         .kpi-title { font-size: 12px; color: var(--text-sub); margin-bottom: 4px; white-space: nowrap; }
-        .kpi-val { font-size: 26px; color: var(--cyan); font-weight: bold; }
-        .kpi-val span { font-size: 11px; color: #fff; margin-left: 2px; font-weight: normal; }
+        .kpi-val { font-size: 26px; color: var(--text-strong); font-weight: bold; }
+        .kpi-card:nth-child(2) .kpi-val, .kpi-card:nth-child(4) .kpi-val, .kpi-card:nth-child(5) .kpi-val { color: var(--green); }
+        .kpi-card:nth-child(3) .kpi-val { color: var(--yellow); }
+        .kpi-val span { font-size: 11px; color: var(--text-strong); margin-left: 2px; font-weight: normal; }
 
         /* 流程图随总览面板等比缩放，完整保留工序与中文标签。 */
-        .production-flow { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(88, 221, 237, 0.16); flex-shrink: 0; }
+        .production-flow { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-soft); flex-shrink: 0; }
         .production-flow img { display: block; width: 100%; height: auto; }
 
         /* --- 底部右侧：安全生产 --- */
@@ -272,10 +286,10 @@
             align-items: center; 
             justify-content: center; 
         }
-        .safety-icon { width: 72px; height: 72px; padding: 18px; color: var(--green); margin-bottom: 8px; border: 1px solid rgba(82, 226, 176, 0.25); border-radius: 50%; background: radial-gradient(circle, rgba(82, 226, 176, 0.1), transparent 70%); outline: 1px dashed rgba(82, 226, 176, 0.13); outline-offset: 5px; }
+        .safety-icon { width: 72px; height: 72px; padding: 18px; color: var(--green); margin-bottom: 8px; border: 1px solid rgba(117, 230, 154, 0.25); border-radius: 50%; background: radial-gradient(circle, rgba(117, 230, 154, 0.1), transparent 70%); outline: 1px dashed rgba(117, 230, 154, 0.13); outline-offset: 5px; }
         .safety-icon svg { width: 100%; height: 100%; }
         .safety-text { text-align: center; }
-        .safety-text .num { font-size: 42px; font-weight: bold; color: #fff; }
+        .safety-text .num { font-size: 42px; font-weight: bold; color: var(--text-strong); }
         .safety-text .unit { font-size: 16px; color: var(--text-sub); margin-left: 5px; }
 
         /* 仅状态灯持续轻动；尊重系统减少动态效果的偏好。 */
@@ -290,7 +304,7 @@
             .row-top { gap: clamp(8px, 1.4vh, 15px); }
             .chart-box, .shipment-chart { flex: 1 1 0; min-height: 0; }
             .production-flow { margin-top: 6px; padding-top: 6px; }
-            .production-flow img { height: clamp(54px, 9vh, 110px); object-fit: contain; }
+            /* 沿用基础图片的自适应高度，避免视口高度限制图片随面板变宽。 */
             .kpi-content { flex: none; }
         }
         /* 矮屏先收紧间距与装饰，保持字段与全部业务模块可见。 */
@@ -329,7 +343,6 @@
             .line-card { padding-top: 6px; padding-bottom: 6px; }
             .line-header { padding-bottom: 3px; margin-bottom: 3px; }
             .data-list { line-height: 1.4; }
-            .production-flow img { height: 44px; }
             .kpi-card { padding: 3px; }
             .kpi-val { font-size: 18px; }
             .safety-panel { flex-direction: row; gap: 16px; }
@@ -452,17 +465,17 @@
                     <!-- 每行独立记录物料、仓库和单位；当前按截图录入，不限定只有钢卷。 -->
                     <div class="material-table-wrap" tabindex="0" role="region" aria-label="原材料库存明细，自动慢速滚动，悬停或聚焦暂停，可手动滚动">
                     <table class="inv-table material-table">
-                        <colgroup><col style="width: 25%"><col style="width: 28%"><col style="width: 18%"><col style="width: 29%"></colgroup>
-                        <thead><tr><th>物料 / 仓库</th><th>规格 / 备注</th><th class="material-number">库存</th><th class="material-number material-weight-heading">重量 / 可切</th></tr></thead>
+                        <colgroup><col><col><col><col><col><col><col></colgroup>
+                        <thead><tr><th>物料</th><th>仓库</th><th>规格</th><th>备注</th><th class="material-number">库存</th><th class="material-number">重量</th><th class="material-number">可切</th></tr></thead>
                         <tbody>
-                            <tr><td>钢卷<span class="inventory-sub">原材料仓库</span></td><td><span class="material-spec">1.6*1430/<br>1.6*1500</span><span class="inventory-sub material-remark">A柱</span></td><td class="material-number"><span class="val">16</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">185,370</span><span class="inventory-sub"><span class="inventory-sub-label">可切 </span><span class="empty">—</span></span></td></tr>
-                            <tr><td>钢卷<span class="inventory-sub">原材料仓库</span></td><td><span class="material-spec">1.6*1142</span><span class="inventory-sub material-remark">A柱</span></td><td class="material-number"><span class="val">0</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">0</span><span class="inventory-sub"><span class="inventory-sub-label">可切 </span><span class="empty">—</span></span></td></tr>
-                            <tr><td>钢卷<span class="inventory-sub">原材料仓库</span></td><td><span class="material-spec">1.8*1245</span><span class="inventory-sub material-remark">B柱</span></td><td class="material-number"><span class="val">5</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">61,210</span><span class="inventory-sub"><span class="inventory-sub-label">可切 </span><span class="empty">—</span></span></td></tr>
-                            <tr><td>钢卷<span class="inventory-sub">原材料仓库</span></td><td><span class="material-spec">1.8*1300</span><span class="inventory-sub material-remark">补丁板</span></td><td class="material-number"><span class="val">9</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">110,850</span><span class="inventory-sub"><span class="inventory-sub-label">可切 </span><span class="empty">—</span></span></td></tr>
-                            <tr><td>钢卷<span class="inventory-sub">原材料仓库</span></td><td><span class="material-spec">1.4*1002</span><span class="inventory-sub material-remark">A柱下</span></td><td class="material-number"><span class="val">0</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">0</span><span class="inventory-sub"><span class="inventory-sub-label">可切 </span><span class="empty">—</span></span></td></tr>
-                            <tr><td>钢卷<span class="inventory-sub">原材料仓库</span></td><td><span class="material-spec">1.4*1004</span><span class="inventory-sub material-remark">A柱下</span></td><td class="material-number"><span class="val">4</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">43,220</span><span class="inventory-sub"><span class="inventory-sub-label">可切 </span><span class="empty">—</span></span></td></tr>
-                            <tr><td>钢卷<span class="inventory-sub">原材料仓库</span></td><td><span class="material-spec">1.4*1414</span><span class="inventory-sub material-remark">门槛</span></td><td class="material-number"><span class="val">7</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">82,720</span><span class="inventory-sub"><span class="inventory-sub-label">可切 </span><span class="empty">—</span></span></td></tr>
-                            <tr><td>钢卷<span class="inventory-sub">原材料仓库</span></td><td><span class="material-spec">1.2*1250</span><span class="inventory-sub material-remark">试机料</span></td><td class="material-number"><span class="val">0.5</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="empty">—</span><span class="inventory-sub"><span class="inventory-sub-label">可切 </span><span class="empty">—</span></span></td></tr>
+                            <tr><td class="material-name">钢卷</td><td class="warehouse-field">原材料仓库</td><td><span class="material-spec">1.6*1430/<wbr>1.6*1500</span></td><td class="material-remark">A柱</td><td class="material-number"><span class="val">16</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">185,370</span></td><td class="cut-field">—</td></tr>
+                            <tr><td class="material-name">钢卷</td><td class="warehouse-field">原材料仓库</td><td><span class="material-spec">1.6*1142</span></td><td class="material-remark">A柱</td><td class="material-number"><span class="val">0</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">0</span></td><td class="cut-field">—</td></tr>
+                            <tr><td class="material-name">钢卷</td><td class="warehouse-field">原材料仓库</td><td><span class="material-spec">1.8*1245</span></td><td class="material-remark">B柱</td><td class="material-number"><span class="val">5</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">61,210</span></td><td class="cut-field">—</td></tr>
+                            <tr><td class="material-name">钢卷</td><td class="warehouse-field">原材料仓库</td><td><span class="material-spec">1.8*1300</span></td><td class="material-remark">补丁板</td><td class="material-number"><span class="val">9</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">110,850</span></td><td class="cut-field">—</td></tr>
+                            <tr><td class="material-name">钢卷</td><td class="warehouse-field">原材料仓库</td><td><span class="material-spec">1.4*1002</span></td><td class="material-remark">A柱下</td><td class="material-number"><span class="val">0</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">0</span></td><td class="cut-field">—</td></tr>
+                            <tr><td class="material-name">钢卷</td><td class="warehouse-field">原材料仓库</td><td><span class="material-spec">1.4*1004</span></td><td class="material-remark">A柱下</td><td class="material-number"><span class="val">4</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">43,220</span></td><td class="cut-field">—</td></tr>
+                            <tr><td class="material-name">钢卷</td><td class="warehouse-field">原材料仓库</td><td><span class="material-spec">1.4*1414</span></td><td class="material-remark">门槛</td><td class="material-number"><span class="val">7</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="val">82,720</span></td><td class="cut-field">—</td></tr>
+                            <tr><td class="material-name">钢卷</td><td class="warehouse-field">原材料仓库</td><td><span class="material-spec">1.2*1250</span></td><td class="material-remark">试机料</td><td class="material-number"><span class="val">0.5</span><span class="inventory-unit">卷</span></td><td class="material-number"><span class="empty">—</span></td><td class="cut-field">—</td></tr>
                         </tbody>
                     </table>
                     </div>
@@ -472,19 +485,19 @@
                     <div class="section-title">半成品明细</div>
                     <div class="material-table-wrap" tabindex="0" role="region" aria-label="半成品库存明细，自动慢速滚动，悬停或聚焦暂停，可手动滚动">
                     <table class="inv-table semi-table">
-                        <colgroup><col style="width: 12%"><col style="width: 44%"><col style="width: 16%"><col style="width: 28%"></colgroup>
-                        <thead><tr><th>类别</th><th>物料 / 仓库</th><th class="semi-spec">规格</th><th style="text-align: right">库存</th></tr></thead>
+                        <colgroup><col><col><col><col><col></colgroup>
+                        <thead><tr><th>类别</th><th>物料</th><th>仓库</th><th class="semi-spec">规格</th><th style="text-align: right">库存</th></tr></thead>
                         <tbody>
-                            <tr><td class="semi-group" rowspan="5">左件</td><td><span class="semi-name">门槛左件</span><span class="inventory-sub semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.4</td><td class="val"><span class="semi-quantity">2,977</span><span class="inventory-unit">个</span></td></tr>
-                            <tr><td><span class="semi-name">A柱下左件</span><span class="inventory-sub semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.4</td><td class="val"><span class="semi-quantity">2,563</span><span class="inventory-unit">个</span></td></tr>
-                            <tr><td><span class="semi-name">A柱左件</span><span class="inventory-sub semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.6</td><td class="val"><span class="semi-quantity">2,895</span><span class="inventory-unit">个</span></td></tr>
-                            <tr><td><span class="semi-name">B柱左件</span><span class="inventory-sub semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.8</td><td class="val"><span class="semi-quantity">1,623</span><span class="inventory-unit">个</span></td></tr>
-                            <tr><td><span class="semi-name">补丁板左件</span><span class="inventory-sub semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.8</td><td class="val"><span class="semi-quantity">4,410</span><span class="inventory-unit">个</span></td></tr>
-                            <tr class="semi-group-start"><td class="semi-group" rowspan="5">右件</td><td><span class="semi-name">门槛右件</span><span class="inventory-sub semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.4</td><td class="val"><span class="semi-quantity">4,854</span><span class="inventory-unit">个</span></td></tr>
-                            <tr><td><span class="semi-name">A柱下右件</span><span class="inventory-sub semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.4</td><td class="val"><span class="semi-quantity">2,030</span><span class="inventory-unit">个</span></td></tr>
-                            <tr><td><span class="semi-name">A柱右件</span><span class="inventory-sub semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.6</td><td class="val"><span class="semi-quantity">2,249</span><span class="inventory-unit">个</span></td></tr>
-                            <tr><td><span class="semi-name">B柱右件</span><span class="inventory-sub semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.8</td><td class="val"><span class="semi-quantity">1,157</span><span class="inventory-unit">个</span></td></tr>
-                            <tr><td><span class="semi-name">补丁板右件</span><span class="inventory-sub semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.8</td><td class="val"><span class="semi-quantity">5,196</span><span class="inventory-unit">个</span></td></tr>
+                            <tr><td class="semi-group" rowspan="5">左件</td><td><span class="semi-name">门槛左件</span></td><td class="warehouse-field"><span class="semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.4</td><td class="val"><span class="semi-quantity">2,977</span><span class="inventory-unit">个</span></td></tr>
+                            <tr><td><span class="semi-name">A柱下左件</span></td><td class="warehouse-field"><span class="semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.4</td><td class="val"><span class="semi-quantity">2,563</span><span class="inventory-unit">个</span></td></tr>
+                            <tr><td><span class="semi-name">A柱左件</span></td><td class="warehouse-field"><span class="semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.6</td><td class="val"><span class="semi-quantity">2,895</span><span class="inventory-unit">个</span></td></tr>
+                            <tr><td><span class="semi-name">B柱左件</span></td><td class="warehouse-field"><span class="semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.8</td><td class="val"><span class="semi-quantity">1,623</span><span class="inventory-unit">个</span></td></tr>
+                            <tr><td><span class="semi-name">补丁板左件</span></td><td class="warehouse-field"><span class="semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.8</td><td class="val"><span class="semi-quantity">4,410</span><span class="inventory-unit">个</span></td></tr>
+                            <tr class="semi-group-start"><td class="semi-group" rowspan="5">右件</td><td><span class="semi-name">门槛右件</span></td><td class="warehouse-field"><span class="semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.4</td><td class="val"><span class="semi-quantity">4,854</span><span class="inventory-unit">个</span></td></tr>
+                            <tr><td><span class="semi-name">A柱下右件</span></td><td class="warehouse-field"><span class="semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.4</td><td class="val"><span class="semi-quantity">2,030</span><span class="inventory-unit">个</span></td></tr>
+                            <tr><td><span class="semi-name">A柱右件</span></td><td class="warehouse-field"><span class="semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.6</td><td class="val"><span class="semi-quantity">2,249</span><span class="inventory-unit">个</span></td></tr>
+                            <tr><td><span class="semi-name">B柱右件</span></td><td class="warehouse-field"><span class="semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.8</td><td class="val"><span class="semi-quantity">1,157</span><span class="inventory-unit">个</span></td></tr>
+                            <tr><td><span class="semi-name">补丁板右件</span></td><td class="warehouse-field"><span class="semi-warehouse">半成品仓库</span></td><td class="semi-spec">1.8</td><td class="val"><span class="semi-quantity">5,196</span><span class="inventory-unit">个</span></td></tr>
                         </tbody>
                     </table>
                     </div>
@@ -584,6 +597,15 @@
         updateTime();
 
         // ================= 2. ECharts 图表初始化 =================
+        // 图表读取同一套主题变量，保证曲线、图例、提示与页面颜色一致。
+        const themeStyles = getComputedStyle(document.documentElement);
+        const themeColor = name => themeStyles.getPropertyValue(name).trim();
+        const chartColors = {
+            primary: themeColor('--cyan'), secondary: themeColor('--yellow'), success: themeColor('--green'),
+            text: themeColor('--text-main'), muted: themeColor('--text-sub'), strong: themeColor('--text-strong'),
+            border: themeColor('--border-color'), surface: themeColor('--surface-raised'),
+            total: 'rgba(126, 166, 186, 0.3)'
+        };
         const newChart = echarts.init(document.getElementById('newTrendChart'));
         // 图表只在首次展示时过渡，减少动态效果时直接显示结果。
         const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -605,15 +627,15 @@
             tooltip: {
                 trigger: 'axis',
                 confine: true,
-                backgroundColor: 'rgba(10, 20, 35, 0.9)',
-                borderColor: '#0b4065',
-                textStyle: { color: '#fff' },
+                backgroundColor: chartColors.surface,
+                borderColor: chartColors.border,
+                textStyle: { color: chartColors.strong },
                 axisPointer: { type: 'line', lineStyle: { color: 'rgba(255,255,255,0.2)' } },
                 formatter: function (params) {
                     let html = `<div style="font-weight:bold;margin-bottom:8px;font-size:14px;">${params[0].name}日</div>`;
                     const totalObj = params.find(p => p.seriesName === '总产量');
                     if(totalObj) {
-                        html += `<div style="font-size:13px;margin-bottom:5px;color:#00f2fe;">总产量：<span style="color:#fff;font-weight:bold;">${totalObj.value.toLocaleString()}</span> 件</div>`;
+                        html += `<div style="font-size:13px;margin-bottom:5px;color:var(--cyan);">总产量：<span style="color:var(--text-strong);font-weight:bold;">${totalObj.value.toLocaleString()}</span> 件</div>`;
                         html += `<div style="border-top:1px dashed rgba(255,255,255,0.2);margin:5px 0;"></div>`;
                     }
                     params.forEach(item => {
@@ -634,13 +656,13 @@
             },
             legend: {
                 top: 0,
-                textStyle: { color: '#7cb4e3' },
+                textStyle: { color: chartColors.muted },
                 itemWidth: 14,
                 itemHeight: 8,
                 data: [
-                    { name: '总产量', icon: 'roundRect', itemStyle: { color: 'rgba(0, 242, 254, 0.35)' } },
-                    { name: '激光拼焊线A', icon: 'circle', itemStyle: { color: '#b388ff' } },
-                    { name: '激光拼焊线B', icon: 'circle', itemStyle: { color: '#00ff88' } }
+                    { name: '总产量', icon: 'roundRect', itemStyle: { color: chartColors.total } },
+                    { name: '激光拼焊线A', icon: 'circle', itemStyle: { color: chartColors.primary } },
+                    { name: '激光拼焊线B', icon: 'circle', itemStyle: { color: chartColors.secondary } }
                 ]
             },
             grid: {
@@ -653,18 +675,18 @@
             xAxis: {
                 type: 'category',
                 data: xData,
-                axisLine: { lineStyle: { color: '#0b4065' } },
-                axisLabel: { color: '#7cb4e3', margin: 15 },
+                axisLine: { lineStyle: { color: chartColors.border } },
+                axisLabel: { color: chartColors.muted, margin: 15 },
                 axisTick: { show: false }
             },
             yAxis: {
                 type: 'value',
                 min: 0,
                 name: '产量 / 件',
-                nameTextStyle: { color: '#7cb4e3', padding: [0, 0, 0, -20] },
-                splitLine: { lineStyle: { color: 'rgba(11, 64, 101, 0.5)', type: 'dashed' } },
+                nameTextStyle: { color: chartColors.muted, padding: [0, 0, 0, -20] },
+                splitLine: { lineStyle: { color: 'rgba(60, 89, 103, 0.5)', type: 'dashed' } },
                 axisLabel: { 
-                    color: '#7cb4e3',
+                    color: chartColors.muted,
                     formatter: function(value) { return value === 0 ? '0' : value.toLocaleString(); }
                 }
             },
@@ -676,8 +698,8 @@
                     z: 1,
                     itemStyle: {
                         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: 'rgba(0, 242, 254, 0.35)' },
-                            { offset: 1, color: 'rgba(0, 51, 102, 0.15)' }
+                            { offset: 0, color: chartColors.total },
+                            { offset: 1, color: 'rgba(126, 166, 186, 0.035)' }
                         ]),
                         borderRadius: [2, 2, 0, 0]
                     },
@@ -685,13 +707,13 @@
                 },
                 {
                     name: '激光拼焊线A', type: 'line', smooth: false, symbol: 'circle', symbolSize: 5, z: 2,
-                    itemStyle: { color: '#b388ff', borderColor: '#fff', borderWidth: 1 },
-                    lineStyle: { width: 3, color: '#b388ff' }, data: line3Data
+                    itemStyle: { color: chartColors.primary, borderColor: '#d7f0ef', borderWidth: 1 },
+                    lineStyle: { width: 3, color: chartColors.primary }, data: line3Data
                 },
                 {
                     name: '激光拼焊线B', type: 'line', smooth: false, symbol: 'circle', symbolSize: 5, z: 2,
-                    itemStyle: { color: '#52e2b0', borderColor: '#fff', borderWidth: 1 },
-                    lineStyle: { width: 3, color: '#52e2b0' }, data: line4Data
+                    itemStyle: { color: chartColors.secondary, borderColor: '#f5ebcf', borderWidth: 1 },
+                    lineStyle: { width: 3, color: chartColors.secondary }, data: line4Data
                 }
             ]
         };
@@ -721,9 +743,9 @@
                 trigger: 'axis',
                 confine: true,
                 axisPointer: { type: 'shadow' },
-                backgroundColor: 'rgba(10, 20, 35, 0.9)',
-                borderColor: '#0b4065',
-                textStyle: { color: '#fff' },
+                backgroundColor: chartColors.surface,
+                borderColor: chartColors.border,
+                textStyle: { color: chartColors.strong },
                 formatter: params => `${params[0].name}<br>出货数量：${params[0].value.toLocaleString()} 件`
             },
             xAxis: { type: 'value', show: false, min: 0 },
@@ -734,13 +756,13 @@
                 axisLine: { show: false },
                 axisTick: { show: false },
                 axisLabel: {
-                    color: '#d5e8f3', fontSize: 13, margin: 12, interval: 0,
+                    color: chartColors.text, fontSize: 13, margin: 12, interval: 0,
                     // 排名由降序后的实际顺序生成，前三名使用更亮的编号。
                     formatter: (value, index) => `{${index < 3 ? 'rankTop' : 'rank'}|${String(index + 1).padStart(2, '0')}}  {part|${value}}`,
                     rich: {
-                        rankTop: { color: '#80efd1', backgroundColor: 'rgba(82, 226, 176, 0.12)', padding: [3, 4], borderRadius: 2, fontSize: 11 },
-                        rank: { color: '#7997ab', padding: [3, 4], fontSize: 11 },
-                        part: { color: '#d5e8f3', fontSize: 12 }
+                        rankTop: { color: chartColors.success, backgroundColor: 'rgba(117, 230, 154, 0.12)', padding: [3, 4], borderRadius: 2, fontSize: 11 },
+                        rank: { color: chartColors.muted, padding: [3, 4], fontSize: 11 },
+                        part: { color: chartColors.text, fontSize: 12 }
                     }
                 }
             },
@@ -749,11 +771,11 @@
                 type: 'bar',
                 barWidth: 14,
                 showBackground: true,
-                backgroundStyle: { color: 'rgba(0, 242, 254, 0.05)', borderRadius: 3 },
+                backgroundStyle: { color: 'rgba(90, 214, 218, 0.05)', borderRadius: 3 },
                 itemStyle: {
                     color: params => new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-                        { offset: 0, color: params.dataIndex < 3 ? '#24677f' : '#234558' },
-                        { offset: 1, color: params.dataIndex < 3 ? '#52e2b0' : '#4197ad' }
+                        { offset: 0, color: chartColors.border },
+                        { offset: 1, color: params.dataIndex < 3 ? chartColors.success : chartColors.primary }
                     ]),
                     borderRadius: [0, 3, 3, 0]
                 },
@@ -761,7 +783,7 @@
                     show: true,
                     position: 'right',
                     distance: 12,
-                    color: '#b6f5e1',
+                    color: chartColors.text,
                     fontSize: 13,
                     fontWeight: 'bold',
                     formatter: params => `${params.value.toLocaleString()} 件`
@@ -769,7 +791,7 @@
                 markPoint: {
                     symbol: 'circle', symbolSize: 5,
                     label: { show: false },
-                    itemStyle: { color: '#c5fff0', shadowBlur: 8, shadowColor: '#52e2b0' },
+                    itemStyle: { color: chartColors.success, shadowBlur: 8, shadowColor: chartColors.success },
                     data: shipmentData.map(item => ({ coord: [item.quantity, item.partNo] }))
                 },
                 data: shipmentData.map(item => item.quantity)
