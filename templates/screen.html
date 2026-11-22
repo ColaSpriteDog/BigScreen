@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能制造生产监控中心</title>
+  <link rel="stylesheet" href="/static/css/screen.css">
+  <script defer src="/static/vendor/echarts.min.js"></script>
+  <script defer src="/static/js/model.js"></script>
+  <script defer src="/static/js/api.js"></script>
+  <script defer src="/static/js/screen.js"></script>
+</head>
+<body>
+  <svg class="symbol-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><symbol id="safety-icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter"><path d="m12 2 8 4v7c0 4-5 7-8 9-3-2-8-5-8-9V6l8-4Z"/><path d="m8 12 3 3 5-6"/></g></symbol></svg>
+  <header>
+    <div class="company-brand"><img class="company-logo" src="/assets/gulian-logo.png" width="1200" height="304" alt="固联轻量化公司标志"></div>
+    <h1>智能制造生产监控中心</h1>
+    <div class="header-meta"><a class="data-source" id="connectionStatus" href="/edit" aria-label="打开数据编辑页面" role="status">连接中</a><time class="time" id="currentTime"></time></div>
+  </header>
+  <main class="main-container">
+    <div class="row-top" id="lineCards"></div>
+    <section class="panel inventory-panel">
+      <div class="panel-title">原材料 + 半成品库存</div>
+      <div class="inv-summary">
+        <div><div class="inv-label">原材料库存</div><div class="num" id="rawTotal">—</div></div>
+        <div><div class="inv-label">半成品库存</div><div class="num" id="semiTotal">—</div></div>
+      </div>
+      <div class="inv-details-wrap">
+        <div class="inv-section">
+          <div class="section-title">原材料明细<span class="inventory-warning" id="zeroCount"></span></div>
+          <div class="material-table-wrap" tabindex="0" role="region" aria-label="原材料库存明细，内容超出时自动慢速滚动，可手动查看">
+            <table class="inv-table material-table"><colgroup><col style="width:9%"><col style="width:14%"><col style="width:19%"><col style="width:8%"><col style="width:10%"><col style="width:16%"><col style="width:13%"><col style="width:11%"></colgroup>
+              <thead><tr><th scope="col">物料</th><th scope="col">仓库</th><th scope="col">规格</th><th scope="col">部位</th><th scope="col" class="material-number">库存</th><th scope="col" class="material-number">重量</th><th scope="col" class="material-status">状态</th><th scope="col" class="material-number">可切</th></tr></thead><tbody id="rawTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="inv-section">
+          <div class="section-title">半成品明细<span class="panel-note">按类别展示</span></div>
+          <div class="material-table-wrap" tabindex="0" role="region" aria-label="半成品库存明细，内容超出时自动慢速滚动，可手动查看">
+            <table class="inv-table semi-table"><thead><tr><th scope="col">类别</th><th scope="col">物料</th><th scope="col">仓库</th><th scope="col" class="semi-spec">规格</th><th scope="col">库存</th></tr></thead><tbody id="semiTableBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="panel chart-panel">
+      <div class="panel-title chart-title"><h2 class="chart-heading">30天内产线产量趋势图</h2><div class="chart-legend" id="trendLegend"></div><span class="trend-total" id="trendTotal">—</span></div>
+      <div id="newTrendChart" class="chart-box" role="img" aria-label="近30天产线产量趋势"></div>
+    </section>
+    <section class="panel shipment-panel">
+      <div class="panel-title">当月销售出货统计<span class="panel-note">TOP 8 型号</span></div>
+      <div class="shipment-summary">
+        <div><div class="shipment-summary-label">本月订单量 / 件</div><div class="shipment-summary-value" id="orderQty">—</div></div>
+        <div><div class="shipment-summary-label">本月累计出货</div><div class="shipment-summary-value" id="shippedQty">—</div></div>
+        <div><div class="shipment-summary-label">出货达成率</div><div class="shipment-summary-value" id="shipmentRate">—</div></div>
+      </div>
+      <div id="shipmentChart" class="shipment-chart" role="img" aria-label="按出货数量排序的件号柱状图"></div>
+    </section>
+    <section class="panel kpi-panel">
+      <div class="panel-title">生产数据总览<span class="panel-note">当日全局指标</span></div>
+      <div class="kpi-content">
+        <div class="kpi-card"><div class="kpi-title">总计划产量</div><div class="kpi-val" id="plannedQty">—</div></div>
+        <div class="kpi-card"><div class="kpi-title">实际完成</div><div class="kpi-val" id="actualQty">—</div></div>
+        <div class="kpi-card"><div class="kpi-title">综合达成率</div><div class="kpi-val" id="completionRate">—</div></div>
+        <div class="kpi-card"><div class="kpi-title">设备综合效率</div><div class="kpi-val" id="oeePercent">—</div></div>
+        <div class="kpi-card"><div class="kpi-title">品质合格率</div><div class="kpi-val" id="qualityPercent">—</div></div>
+        <div class="kpi-card"><div class="kpi-title">平均产出</div><div class="kpi-val" id="averageOutput">—</div></div>
+      </div>
+    </section>
+    <section class="panel flow-panel">
+      <div class="panel-title"><h2 class="flow-heading">产线工艺流程监控</h2><span class="flow-warning" id="flowWarning" hidden></span></div>
+      <ol class="process-flow" id="processFlow" aria-label="生产工艺流程及当前状态"></ol>
+    </section>
+    <section class="panel safety-panel">
+      <div class="safety-icon"><svg aria-hidden="true"><use href="#safety-icon"></use></svg></div>
+      <div class="safety-text"><div><div class="safety-label">安全生产天数</div><div class="safety-caption">连续安全无事故运行</div></div><div class="safety-number"><span class="num" id="safetyDays">—</span><span class="unit">天</span></div></div>
+    </section>
+  </main>
+</body>
+</html>

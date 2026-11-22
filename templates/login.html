@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 · 大屏管理</title>
+  <link rel="stylesheet" href="/static/css/editor.css">
+  <link rel="stylesheet" href="/static/css/login.css">
+  <script defer src="/static/js/api.js"></script>
+  <script defer src="/static/js/login.js"></script>
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <img class="login-logo" src="/assets/gulian-logo.png" alt="固联轻量化" width="170" height="44">
+    <h1>大屏管理</h1>
+    <form id="loginForm">
+      <label for="username">登录账号</label>
+      <input id="username" name="username" autocomplete="username" maxlength="40" required autofocus>
+      <label for="password">密码</label>
+      <div class="password-control"><input id="password" name="password" type="password" autocomplete="current-password" maxlength="128" required><button id="togglePassword" type="button" aria-label="显示密码" aria-pressed="false">显示</button></div>
+      <p id="loginError" class="login-error" role="alert" tabindex="-1" hidden></p>
+      <button id="loginButton" class="login-submit" type="submit">登录</button>
+    </form>
+    <a class="login-screen" href="/screen">打开大屏 <span aria-hidden="true">↗</span></a>
+  </main>
+  <noscript>登录页面需要启用 JavaScript。</noscript>
+</body>
+</html>

@@ -1,0 +1,20 @@
+.login-page { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 32px 20px; border-top: 5px solid var(--editor-primary); }
+.login-card { width: min(100%, 420px); padding: 42px 40px 30px; background: #fff; border: 1px solid var(--editor-border); border-radius: 8px; box-shadow: 0 12px 40px #17303e0a; }
+.login-logo { display: block; object-fit: contain; object-position: left center; max-width: 100%; }
+.login-card h1 { font-size: 25px; font-weight: 600; margin: 28px 0; letter-spacing: .06em; }
+.login-card form { display: flex; flex-direction: column; }
+.login-card label { font-size: 14px; margin-bottom: 8px; }
+.login-card input { width: 100%; min-width: 0; height: 46px; padding: 0 12px; border: 1px solid var(--editor-border); border-radius: 4px; color: var(--editor-ink); background: #fff; font: inherit; font-size: 16px; }
+.login-card #username { margin-bottom: 22px; }
+.password-control { display: flex; position: relative; }
+.password-control input { padding-right: 62px; }
+.password-control button { position: absolute; right: 1px; top: 1px; height: 44px; min-width: 54px; border: 0; background: transparent; color: var(--editor-primary); font: inherit; cursor: pointer; }
+.login-submit { height: 46px; margin-top: 28px; border: 0; border-radius: 4px; background: var(--editor-primary); color: #fff; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; transition: background .15s; }
+.login-submit:hover { background: var(--el-color-primary-dark-2); }
+.login-submit:disabled { opacity: .65; cursor: wait; }
+.login-error { margin: 14px 0 -8px; color: #b42318; font-size: 14px; }
+.login-screen { display: flex; justify-content: center; gap: 8px; align-items: center; min-height: 44px; margin-top: 20px; color: var(--editor-muted); text-decoration: none; font-size: 14px; }
+.login-screen:hover { color: var(--editor-primary); }
+.login-card :focus-visible { outline: 2px solid var(--editor-primary); outline-offset: 3px; }
+@media (max-width: 480px) { .login-card { padding: 32px 24px 24px; } }
+@media (prefers-reduced-motion: reduce) { .login-submit { transition: none; } }
