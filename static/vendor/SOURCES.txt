@@ -1,0 +1,21 @@
+本地第三方运行依赖，保留原文件中的许可证声明。
+
+vue.global.prod.js
+https://cdn.jsdelivr.net/npm/vue@3.5.24/dist/vue.global.prod.js
+SHA256: 9847847474877fae5997b30db1674c99d3f8ae36b475af3224a1f79c274530a9
+
+element-plus.js
+https://cdn.jsdelivr.net/npm/element-plus@2.11.8/dist/index.full.min.js
+SHA256: ff0eb7e98d7e1214ee1a9e093a0e20e0ff01c7f1c696f7ca60fb6c6e8bcf25a8
+
+element-plus.css
+https://cdn.jsdelivr.net/npm/element-plus@2.11.8/dist/index.css
+SHA256: 676fe66a3b3814b22e459cda179e77ca526ac020caefe96200df50a09a9caca0
+
+element-plus-zh-cn.js
+https://cdn.jsdelivr.net/npm/element-plus@2.11.8/dist/locale/zh-cn.min.js
+SHA256: 2717be845cef4fbb0a635611ddd443c83531ab7a6923eb226bad41359e726dac
+
+echarts.min.js
+https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js
+SHA256: 1156429a16a38cb8604dcc6518c19406d4226142d908f8edd2e3531443c54d19
