@@ -1,0 +1,52 @@
+[
+  {
+    "file": "01-edit-production.svg",
+    "size": [
+      1440,
+      900
+    ],
+    "text_bounds": "通过",
+    "xml": "通过",
+    "embedded_assets": 1
+  },
+  {
+    "file": "02-edit-inventory.svg",
+    "size": [
+      1440,
+      1180
+    ],
+    "text_bounds": "通过",
+    "xml": "通过",
+    "embedded_assets": 1
+  },
+  {
+    "file": "03-edit-sales.svg",
+    "size": [
+      1440,
+      980
+    ],
+    "text_bounds": "通过",
+    "xml": "通过",
+    "embedded_assets": 1
+  },
+  {
+    "file": "04-edit-settings.svg",
+    "size": [
+      1440,
+      900
+    ],
+    "text_bounds": "通过",
+    "xml": "通过",
+    "embedded_assets": 3
+  },
+  {
+    "file": "05-screen-1440x720.svg",
+    "size": [
+      1440,
+      720
+    ],
+    "text_bounds": "通过",
+    "xml": "通过",
+    "embedded_assets": 6
+  }
+]
