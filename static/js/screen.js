@@ -74,7 +74,19 @@
   /** 创建库存数值单元格；value 为数量、digits 为最多小数位；返回数字单元格，单位显示在表头。 */
   function numericCell(value, digits = 2) {
     const cell = node("td", "material-number");
-    cell.append(node("span", "val", model.formatNumber(value, digits)));
+    cell.append(node("span", value == null ? "val is-empty" : "val", model.formatNumber(value, digits)));
+    return cell;
+  }
+
+  /** 创建原材料规格单元格；value 为源规格；返回按斜线分段换行、保留完整内容的单元格。 */
+  function specificationCell(value) {
+    const cell = node("td", "material-spec");
+    const parts = String(value ?? "").split("/");
+    parts.forEach((part, index) => {
+      const last = index === parts.length - 1;
+      cell.append(node("span", "material-spec-part", part + (last ? "" : "/")));
+      if (!last) cell.append(document.createElement("wbr"));
+    });
     return cell;
   }
 
@@ -86,9 +98,13 @@
 
   /** 更新库存表头；id 为行标识，before/after 为固定字段，units 为单位列；返回完整列配置。 */
   function inventoryHeader(id, before, units, after = []) {
-    const columns = [...before, ...units.map(unit => ({ label: "剩余数量" + model.unitLabel(unit), className: "material-number stock-heading", width: 26 })), ...after];
+    const columns = [...before, ...units.map(unit => ({ label: "剩余数量" + model.unitLabel(unit), className: "material-number stock-heading", width: 30 })), ...after];
     document.getElementById(id).replaceChildren(...columns.map(column => {
-      const heading = node("th", column.className || "", column.label);
+      const heading = node("th", column.className || "");
+      // 单位紧跟字段名称显示，使用较小字号保持表头单行。
+      const unit = column.label.match(/（[^）]+）$/);
+      heading.append(document.createTextNode(unit ? column.label.slice(0, unit.index) : column.label));
+      if (unit) heading.append(node("span", "inventory-column-unit", unit[0]));
       heading.scope = "col";
       return heading;
     }));
@@ -124,10 +140,10 @@
     const rawUnits = inventoryUnits(inventory.raw);
     const semiUnits = inventoryUnits(inventory.semi);
     const rawColumns = inventoryHeader("rawTableHeader", [
-      { label: "产品名称", width: 18 }, { label: "规格型号", width: 24 },
+      { label: "产品名称", width: 18 }, { label: "规格型号", width: 30 },
     ], rawUnits, [
-      { label: "重量（吨）", className: "material-number", width: 20 },
-      { label: "可切（件）", className: "material-number", width: 20 },
+      { label: "重量（吨）", className: "material-number", width: 22 },
+      { label: "可切（件）", className: "material-number", width: 22 },
     ]);
     const totalWidth = rawColumns.reduce((sum, column) => sum + column.width, 0);
     document.getElementById("rawTableColumns").replaceChildren(...rawColumns.map(column => {
@@ -141,7 +157,7 @@
       const row = node("tr", item.status === "zero" ? "is-shortage" : "");
       // 钢卷归入原材料，行内按汇总表展示产品、规格、余量、重量和预计可切数量。
       row.append(node("td", "material-name material-part", item.position || item.material),
-        node("td", "material-spec", item.specification),
+        specificationCell(item.specification),
         ...rawUnits.map(unit => numericCell(item.unit === unit ? item.quantity : null)), numericCell(model.weightTonnes(item.weight_kg), 5));
       row.append(numericCell(item.cuttable_qty));
       return row;

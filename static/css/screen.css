@@ -267,16 +267,24 @@
 /* 桌面左右区域与顶部第一、第四条产线共享四等分网格。 */
 .inventory-panel { padding-left: 10px; padding-right: 10px; }
 .material-table th, .material-table td { padding-left: 2px; padding-right: 2px; }
-.material-table { font-size: 11px; }
-.material-table th { font-size: 10px; }
-.material-table .val { font-size: 11.5px; }
+/* 原材料与半成品共用库存表字号，随屏幕尺寸同步调整。 */
 .material-table .warehouse-field, .material-table .material-part { white-space: normal; overflow-wrap: anywhere; }
 .material-table .stock-available { font-size: 10px; }
 .material-table .stock-warning { font-size: 9px; padding: 0 2px; }
+
+/* 库存表统一行高和数值基线，表头名称与单位在同一行显示。 */
+.inv-table th { height: 30px; vertical-align: middle; line-height: 1.35; padding-block: 5px; }
+.inventory-column-unit { display: inline; font-size: .85em; color: var(--text-sub); opacity: .7; }
+.inv-table td { height: 32px; padding-block: 6px; line-height: 1.45; border-bottom-color: rgba(169, 192, 209, .1); }
+.inv-table .val { font-weight: 600; font-variant-numeric: tabular-nums; }
+.inv-table .val.is-empty { color: var(--text-sub); opacity: .5; font-weight: 400; }
+.inv-table td.material-spec, .inv-table td.semi-spec { color: var(--text-sub); }
+.material-spec-part { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+.inv-table tbody tr:nth-child(even):not(.is-shortage) { background: rgba(169, 192, 209, .025); }
+.inv-table .is-shortage { background: rgba(255, 98, 115, .075); }
 @media (min-width: 1600px) and (min-height: 900px) {
-    .material-table { font-size: 12px; }
-    .material-table th { font-size: 11px; }
-    .material-table .val { font-size: 13px; }
+    .inv-table th { height: 34px; padding-block: 6px; }
+    .inv-table td { height: 38px; padding-block: 8px; }
 }
 
 /* 动态仅用于工序间的连接线；节点、图片和文字保持稳定。 */

@@ -44,7 +44,32 @@ def test_oee_uses_source_hours_and_ideal_cycle(client):
     assert client.get('/api/dashboard').get_json()['overview']['oee_percent'] is None
 
 
-@pytest.mark.parametrize('kind', ['too_long', 'rate_formula', 'negative', 'partial_hours'])
+@pytest.mark.parametrize('stops,expected', [
+    ((None, None, None, None), 0),
+    ((0, 0, 0, 0), 0),
+    ((None, 1.5, None, 0), 1.5),
+])
+def test_blank_source_stops_count_as_zero(client, stops, expected):
+    """验证空白停机口径；client、stops、expected 为客户端、四处停机及预期合计；断言预览和保存后 OEE 有效。"""
+    def change(book):
+        """设置拼焊停机明细；book 为内存工作簿；无返回值，保留空白以验证按零汇总。"""
+        for name in ('激光焊接', '激光焊接 (B)'):
+            for row, value in zip((28, 33, 41, 45), stops):
+                book[name].cell(row, 3).value = value
+    response = preview(client, production_workbook(change))
+    assert response.status_code == 200, response.get_json()
+    data = response.get_json()
+    welding = [item for item in data['items'] if item['line_id'] in (3, 4)]
+    assert len(welding) == 2
+    assert all(item['abnormal_hours'] == expected and not item['warnings'] for item in welding)
+    assert client.post('/api/production/2026-11/import', json=data).status_code == 200
+    saved = client.get('/api/editor?date=2026-11-01').get_json()['production']
+    assert all(line['abnormal_hours'] == expected for line in saved['lines'][2:])
+    assert saved['overview']['oee_percent'] == 9.9
+    assert client.get('/api/dashboard').get_json()['overview']['oee_percent'] == 9.9
+
+
+@pytest.mark.parametrize('kind', ['too_long', 'rate_formula', 'negative', 'partial_hours', 'invalid_cell', 'invalid_text'])
 def test_source_timing_errors_warn_without_inventing_oee(client, kind):
     """验证源错误；client/kind 为客户端和错误类型；断言预览标注且不影响有效产量导入、无错误 OEE。"""
     def change(book):
@@ -53,6 +78,8 @@ def test_source_timing_errors_warn_without_inventing_oee(client, kind):
         if kind == 'too_long': sheet['C28'] = 10.5
         elif kind == 'rate_formula': sheet['C45'] = '=C44/C43'
         elif kind == 'negative': sheet['C28'] = -1
+        elif kind == 'invalid_cell': sheet['C28'] = '#DIV/0!'
+        elif kind == 'invalid_text': sheet['C28'] = '待核实'
         else: sheet['C36'] = None
     data = preview(client, production_workbook(change)).get_json()
     item = next(item for item in data['items'] if item['line_id'] == 3)
