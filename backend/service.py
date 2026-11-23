@@ -150,6 +150,7 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True):
         result["sales"]["_audit"] = sale_info["_audit"]
         audit.attach(result["sales"]["items"], "shipment_month_item", lookup)
         audit.attach(result["processes"], "process_node", lookup)
+    result["production"]["overview"].update(production_totals(db, day, day))
     return result
 
 
@@ -159,6 +160,44 @@ def unit_totals(items):
     for item in items:
         totals[item["unit"]] += Decimal(str(item["quantity"]))
     return [{"unit": unit, "quantity": float(quantity)} for unit, quantity in totals.items()]
+
+
+def production_totals(db, first_day, last_day):
+    """累计拼焊日报；db 为连接、first_day/last_day 为日期边界；返回数量、比率、每小时产出和 OEE。"""
+    # 只计 A/B 拼焊线，按已录入产量的产线日累计标准；零产量计入，空白不生成计划。
+    totals = rows(db,
+        "SELECT SUM(d.actual_qty) AS actual_qty,"
+        "COUNT(*) AS reported_count,"
+        "SUM(CASE WHEN d.planned_hours>0 AND d.abnormal_hours IS NOT NULL "
+        "AND d.abnormal_hours<=d.planned_hours AND d.ideal_cycle_hours>0 "
+        "AND (d.actual_qty=0 OR d.abnormal_hours<d.planned_hours) "
+        "AND (d.defect_qty IS NOT NULL OR d.actual_qty=0) THEN 1 ELSE 0 END) AS oee_count,"
+        "SUM(d.planned_hours) AS oee_planned_hours,SUM(d.planned_hours-d.abnormal_hours) AS oee_run_hours,"
+        "SUM((d.actual_qty-COALESCE(d.defect_qty,0))*d.ideal_cycle_hours) AS good_hours,"
+        "ROUND(SUM(d.actual_qty)/NULLIF(SUM(d.planned_hours),0),2) AS average_output,"
+        "CASE WHEN COUNT(*)=COUNT(l.standard_qty) THEN SUM(l.standard_qty) END AS planned_qty,"
+        "CASE WHEN SUM(CASE WHEN d.actual_qty>0 AND d.defect_qty IS NULL THEN 1 ELSE 0 END)=0 "
+        "THEN SUM(d.actual_qty-COALESCE(d.defect_qty,0)) END AS good_qty "
+        "FROM production_daily d JOIN production_line l ON l.id=d.line_id "
+        "WHERE d.line_id IN (3,4) AND d.work_date>=? AND d.work_date<=? AND d.actual_qty IS NOT NULL",
+        (first_day, last_day))[0]
+    # 任一已录入产线缺少标准时保留空计划，避免用不完整分母计算达成率。
+    totals["completion_rate"] = ratio(totals["actual_qty"], totals["planned_qty"])
+    # 有产量但缺少报废量时不推断合格品；零产量没有待判定产品，整月零产量的比率仍为空。
+    totals["quality_percent"] = ratio(totals.pop("good_qty"), totals["actual_qty"])
+    # 将不同标准节拍的产量折算成理想工时，按全月计划工时加权；不对每日 OEE 取算术平均。
+    complete = totals.pop("reported_count") == totals.pop("oee_count")
+    planned, runtime = totals.pop("oee_planned_hours"), totals.pop("oee_run_hours")
+    good = totals.pop("good_hours")
+    valid_runtime = runtime is not None and (runtime > 0 or (runtime == 0 and not totals["actual_qty"]))
+    totals["oee_percent"] = ratio(good, planned) if complete and valid_runtime else None
+    return totals
+
+
+def monthly_overview(db, day):
+    """汇总当月全局指标；db 为连接、day 为业务今天；返回月初至今天按日报自动计算的全部指标。"""
+    # 全部指标统一来自拼焊日报，旧版手填全局数据不再参与展示。
+    return production_totals(db, day[:7] + "-01", day)
 
 
 def dashboard_snapshot(db, now):
@@ -207,8 +246,7 @@ def dashboard_snapshot(db, now):
     for key, item in shipments_by_part.items():
         item["name"] = " / ".join(shipment_names[key])
     sales["ranking"] = sorted(shipments_by_part.values(), key=lambda item: (-item["quantity"], item["part_no"].casefold()))[:8]
-    overview = snapshot["production"]["overview"]
-    overview["completion_rate"] = ratio(overview["actual_qty"], overview["planned_qty"])
+    overview = monthly_overview(db, day)
     processes = snapshot["processes"]
     for process in processes:
         linked = [line for line in lines if line["process_id"] == process["id"]]
@@ -269,15 +307,6 @@ def save_production(db, payload, day, now):
                    "ON CONFLICT(line_id,work_date) DO UPDATE SET actual_qty=excluded.actual_qty,defect_qty=excluded.defect_qty,"
                    "planned_hours=excluded.planned_hours,abnormal_hours=excluded.abnormal_hours",
                    (item["id"], day, actual, defects, planned_hours, abnormal, cycle))
-    overview = object_value(payload.get("overview"))
-    values = [number(overview.get(field), label, integer=integer, optional=True, maximum=maximum)
-              for field, label, integer, maximum in [
-                  ("planned_qty", "总计划产量", True, None), ("actual_qty", "全局实际完成", True, None),
-                  ("oee_percent", "设备综合效率", False, 100), ("quality_percent", "品质合格率", False, 100),
-                  ("average_output", "平均产出", False, None)]]
-    db.execute("INSERT INTO daily_overview VALUES(?,?,?,?,?,?) ON CONFLICT(work_date) DO UPDATE SET "
-               "planned_qty=excluded.planned_qty,actual_qty=excluded.actual_qty,oee_percent=excluded.oee_percent,"
-               "quality_percent=excluded.quality_percent,average_output=excluded.average_output", (day, *values))
     zone = settings(db)["timezone"]
     existing = {item["id"] for item in downtime_rows(db, day, zone)}
     seen = set()

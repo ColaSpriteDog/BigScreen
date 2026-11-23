@@ -56,6 +56,32 @@
     computed: {
       /** 读取当前导航标题与保存文案；无参数；返回选中模块的配置。 */
       currentModule() { return this.modules.find(item => item.id === this.activeTab); },
+      /** 预览所选日拼焊指标；无参数；返回 A/B 日报数量、合格率及每小时产出，草稿改动即时更新。 */
+      productionTotals() {
+        const lines = this.production.lines.filter(line => [3, 4].includes(line.id) && line.actual_qty != null);
+        const actual = lines.length ? lines.reduce((sum, line) => sum + Number(line.actual_qty), 0) : null;
+        // 工时跟随有产量数据的产线记录累计，空白产量不占用分母，空白工时等待完整填写。
+        const hours = lines.length && lines.every(line => line.planned_hours != null)
+          ? lines.reduce((sum, line) => sum + Number(line.planned_hours), 0) : null;
+        // 有产量却未填报废时保留空值，不能把缺失信息当作全部合格。
+        const good = lines.length && lines.every(line => (line.defect_qty != null || Number(line.actual_qty) === 0)
+          && Number(line.defect_qty ?? 0) <= Number(line.actual_qty))
+          ? lines.reduce((sum, line) => sum + Number(line.actual_qty) - Number(line.defect_qty ?? 0), 0) : null;
+        const oeeComplete = good != null && hours > 0 && lines.every(line => line.planned_hours > 0
+          && line.ideal_cycle_hours > 0 && line.abnormal_hours != null
+          && line.abnormal_hours >= 0 && line.abnormal_hours <= line.planned_hours
+          && (line.actual_qty === 0 || line.abnormal_hours < line.planned_hours));
+        const idealGood = oeeComplete ? lines.reduce((sum, line) => sum
+          + (Number(line.actual_qty) - Number(line.defect_qty ?? 0)) * Number(line.ideal_cycle_hours), 0) : null;
+        return {
+          actual_qty: actual,
+          quality_percent: this.rate(good, actual),
+          average_output: hours > 0 ? actual / hours : null,
+          oee_percent: this.rate(idealGood, hours),
+          planned_qty: lines.length && lines.every(line => line.standard_qty != null)
+            ? lines.reduce((sum, line) => sum + Number(line.standard_qty), 0) : null,
+        };
+      },
       /** 计算所选日报的星期；无参数；返回与日期对应的中文星期。 */
       selectedWeekday() { return this.selectedDate ? new Intl.DateTimeFormat("zh-CN", { weekday: "long", timeZone: "UTC" }).format(new Date(this.selectedDate + "T12:00:00Z")) : ""; },
       /** 判断当前模块是否修改；无参数；返回布尔值。 */

@@ -57,7 +57,11 @@ def test_editor_save_updates_screen_and_survives_reload(ui_context, live_server)
 
 def test_production_and_sales_forms_update_actual_charts(ui_context, live_server, client):
     """验证日报销售联动；参数为浏览器、服务和客户端；断言真实图表、汇总和状态使用保存数据。"""
-    from tests.test_api import production_payload
+    from tests.test_api import production_payload, settings_payload
+    config = settings_payload(client)
+    config['lines'][2]['standard_qty'] = 500
+    config['lines'][3]['standard_qty'] = 500
+    assert client.put('/api/settings', json=config).status_code == 200
     editor = ui_context.new_page()
     screen = ui_context.new_page()
     editor.goto(live_server + '/edit')
@@ -66,15 +70,9 @@ def test_production_and_sales_forms_update_actual_charts(ui_context, live_server
     for identifier, amount in enumerate([100, 200, 300, 400], 1):
         fill_control(editor, f'actual-{identifier}', amount)
         fill_control(editor, f'defect-{identifier}', identifier)
-    editor.get_by_role('spinbutton', name='总计划产量', exact=True).fill('1000')
-    editor.get_by_role('spinbutton', name='全局实际完成', exact=True).fill('650')
-    editor.get_by_role('spinbutton', name='设备综合效率', exact=True).fill('95')
-    editor.get_by_role('spinbutton', name='品质合格率', exact=True).fill('98.6')
-    editor.get_by_role('spinbutton', name='平均产出', exact=True).fill('45')
     editor.get_by_test_id('save-button').click()
-    expect(screen.locator('#actualQty')).to_have_text('650（件）')
-    expect(screen.locator('#completionRate')).to_have_text('65%')
-    screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series[0].data.at(-1) === 700")
+    expect(screen.locator('#actualQty')).to_have_text('700（件）')
+    expect(screen.locator('#completionRate')).to_have_text('70%')
     expect(screen.locator('.chart-heading')).to_have_text('当月产线产量趋势图')
     assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().xAxis[0].data") == [f'2026-11-{day:02d}' for day in range(1, 22)]
     Path('output/playwright').mkdir(parents=True, exist_ok=True)

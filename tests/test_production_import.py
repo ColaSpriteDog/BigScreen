@@ -46,6 +46,40 @@ def preview(client, source=None, month='2026-11'):
     return client.post('/api/production/' + month + '/preview', data={'file': (source or production_workbook(), '生产日报.xlsx')})
 
 
+def test_real_production_file_preview_and_save(client, app):
+    """核对用户原表；client、app 为隔离环境；断言明细、标准、米数精度、空白及同步保存正确。"""
+    source = next((Path(__file__).resolve().parents[1] / 'docs').glob('5.*.xlsx'), None)
+    if source is None:
+        pytest.skip('当前环境没有用户提供的生产日报')
+    before = client.get('/api/editor').get_json()
+    with source.open('rb') as stream:
+        response = preview(client, stream)
+    assert response.status_code == 200, response.get_json()
+    data = response.get_json()
+    assert len(data['items']) == 48
+    assert [item['standard_qty'] for item in data['standards']] == [18000, 1420, 1000, 1000]
+    assert [item['unit'] for item in data['standards']] == ['米', '件', '件', '件']
+    assert client.get('/api/editor').get_json() == before
+    assert {item['line_id'] for item in data['items']} == {1, 2, 3}
+    for identifier, amount in [(1, 233939.009212), (2, 21737), (3, 16115)]:
+        assert sum(item['actual_qty'] for item in data['items'] if item['line_id'] == identifier) == pytest.approx(amount)
+    assert client.post('/api/production/2026-11/import', json=data).status_code == 200
+    result = client.get('/api/dashboard').get_json()
+    assert [line['standard_qty'] for line in result['lines']] == [18000, 1420, 1000, 1000]
+    assert [line['monthly_qty'] for line in result['lines']] == pytest.approx([233939.009212, 21737, 16115, None], nan_ok=True)
+    assert result['overview']['actual_qty'] == 16115
+    assert result['overview']['planned_qty'] == 16000
+    assert result['overview']['completion_rate'] == 100.72
+    assert result['overview']['average_output'] == 49.53
+    assert result['overview']['oee_percent'] is None
+    assert any(item['warnings'] for item in data['items'] if item['line_id'] == 3)
+    assert all(line['actual_qty'] is None for line in result['lines'])
+    first = client.get('/api/editor?date=2026-11-01').get_json()['production']['lines']
+    assert first[0]['actual_qty'] == pytest.approx(19217.6438348)
+    assert first[0]['defect_qty'] == pytest.approx(15.172375)
+    assert first[0]['_audit']['modified_by_name'] == '管理员'
+    assert first[0]['planned_hours'] == pytest.approx(20 + 1 / 3)
+    assert first[2]['actual_qty'] == 1001 and first[2]['defect_qty'] == 12
 
 
 

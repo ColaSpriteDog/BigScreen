@@ -34,6 +34,10 @@ def production_payload(client, day='2026-11-21'):
 
 def test_daily_output_drives_monthly_and_trend_and_overview(client):
     """验证日报保存联动；client 为客户端；断言日报、月累计、趋势和全局口径分别正确。"""
+    config = settings_payload(client)
+    config['lines'][2]['standard_qty'] = 1450
+    config['lines'][3]['standard_qty'] = 1400
+    assert client.put('/api/settings', json=config).status_code == 200
     draft = production_payload(client)
     for line, qty, defects in zip(draft['lines'], [1280, 960, 1420, 1360], [18, 22, 15, 38]):
         line.update(actual_qty=qty, defect_qty=defects)
@@ -45,8 +49,9 @@ def test_daily_output_drives_monthly_and_trend_and_overview(client):
     assert data['lines'][0]['defect_rate'] == 1.41
     assert data['trend']['totals'][-1] == 2780
     assert data['trend']['period_total'] == 2780
-    assert data['overview']['actual_qty'] == 6010
-    assert data['overview']['completion_rate'] == 69.88
+    assert data['overview']['actual_qty'] == 2780
+    assert data['overview']['planned_qty'] == 2850
+    assert data['overview']['completion_rate'] == 97.54
 
 
 def test_inventory_fields_and_derived_totals_are_independent(client):

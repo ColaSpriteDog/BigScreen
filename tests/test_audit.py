@@ -87,13 +87,13 @@ def test_daily_empty_placeholders_and_overview_are_independent(client, app, cloc
     clock['now'] += timedelta(minutes=5)
     draft = production_payload(worker)
     draft['lines'][1]['actual_qty'] = 0
-    draft['overview']['planned_qty'] = 1000
+    draft['lines'][1]['abnormal_hours'] = 1
     assert worker.put('/api/production/2026-11-21', json=draft).status_code == 200
     data = client.get('/api/editor').get_json()['production']
     assert data['lines'][0]['_audit'] == first
     assert data['lines'][1]['_audit']['created_by_name'] == '张三'
-    assert data['overview']['_audit']['created_by_name'] == '张三'
-    assert data['overview']['_audit']['created_at'] == clock['now'].isoformat()
+    assert data['lines'][1]['_audit']['created_by_name'] == '张三'
+    assert data['lines'][1]['_audit']['created_at'] == clock['now'].isoformat()
 
 
 def test_sales_preserves_record_ids_and_only_updates_changed_parts(client, app, clock):

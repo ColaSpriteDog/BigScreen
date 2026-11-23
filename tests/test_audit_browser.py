@@ -43,7 +43,7 @@ def test_attribution_all_modules_and_responsive_layout(ui_context, live_server, 
     assert save_inventory(client, inventory).status_code == 200
     production = production_payload(client)
     production['lines'][0]['actual_qty'] = 100
-    production['overview']['planned_qty'] = 1000
+    production['lines'][0]['abnormal_hours'] = 1
     production['downtimes'] = [{'line_id': 1, 'start_at': '2026-11-21T10:00:00', 'end_at': '2026-11-21T11:00:00', 'kind': 'stopped'}]
     assert client.put('/api/production/2026-11-21', json=production).status_code == 200
     version = client.get('/api/editor').get_json()['version']
@@ -70,8 +70,7 @@ def test_attribution_all_modules_and_responsive_layout(ui_context, live_server, 
         expect(page.get_by_test_id('save-button')).to_be_in_viewport()
         page.screenshot(path=str(output / f'editor-audit-{module}-{width}.png'), full_page=True)
         if module == 'production':
-            expect(panel.locator('.section-heading .record-audit')).to_contain_text('管理员')
-            expect(panel.locator('.section-heading .record-audit')).to_contain_text('20:00')
+            expect(panel.get_by_test_id('production-table').locator('.record-audit').first).to_contain_text('管理员')
         if module == 'sales':
             expect(panel.locator('.period-toolbar .record-audit')).to_contain_text('订单最后修改：管理员')
         if module == 'settings':

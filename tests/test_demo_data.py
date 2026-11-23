@@ -35,7 +35,10 @@ def test_demo_data_populates_screen_and_keeps_previous_database_backup(client, a
     assert data['sales']['shipped_qty'] == 37400
     assert len(data['sales']['items']) == 12
     assert data['sales']['order_qty'] == 134490
-    assert data['overview']['actual_qty'] == 6010
+    daily_overviews = [client.get('/api/editor', query_string={'date': f'2026-11-{day:02d}'}).get_json()
+                       ['production']['overview'] for day in range(1, 22)]
+    assert data['overview']['actual_qty'] == sum(item['actual_qty'] for item in daily_overviews)
+    assert data['overview']['planned_qty'] == (1450 + 1400) * 21
     backup_client = create_app({'TESTING': True, 'DATABASE': result['backup_path'], 'BUSINESS_TIMEZONE': 'UTC',
                                 'NOW_PROVIDER': lambda: clock['now']}).test_client()
     restored = backup_client.get('/api/dashboard').get_json()

@@ -55,13 +55,13 @@
                         <el-table-column label="最后修改" width="195"><template #default="scope"><record-audit :meta="scope.row._audit" :timezone="timezone"></record-audit></template></el-table-column>
 </el-table>
           </div>
-          <div class="section-toolbar"><div class="section-heading"><h2>全局生产指标</h2><record-audit :meta="production.overview._audit" :timezone="timezone" prefix="最后修改："></record-audit></div><span class="derived-metric">综合达成率 <strong>{{percent(rate(production.overview.actual_qty,production.overview.planned_qty))}}</strong></span></div>
+          <div class="section-toolbar"><div class="section-heading"><h2>全局生产指标</h2></div><span class="derived-metric">综合达成率 <strong>{{percent(rate(productionTotals.actual_qty,productionTotals.planned_qty))}}</strong></span></div>
           <el-form label-position="top" class="metric-form" @submit.prevent>
-            <el-form-item label="总计划产量（件）" :class="{'is-changed':hasChanged('production','overview','planned_qty')}"><el-input-number v-model="production.overview.planned_qty" :min="0" :precision="0" :controls="false" @change="markDirty('production')" aria-label="总计划产量"></el-input-number></el-form-item>
-            <el-form-item label="实际完成（件）" :class="{'is-changed':hasChanged('production','overview','actual_qty')}"><el-input-number v-model="production.overview.actual_qty" :min="0" :precision="0" :controls="false" @change="markDirty('production')" aria-label="全局实际完成"></el-input-number></el-form-item>
-            <el-form-item label="设备综合效率（%）" :class="{'is-changed':hasChanged('production','overview','oee_percent')}"><el-input-number v-model="production.overview.oee_percent" :min="0" :max="100" :precision="2" :controls="false" @change="markDirty('production')" aria-label="设备综合效率"></el-input-number></el-form-item>
-            <el-form-item label="品质合格率（%）" :class="{'is-changed':hasChanged('production','overview','quality_percent')}"><el-input-number v-model="production.overview.quality_percent" :min="0" :max="100" :precision="2" :controls="false" @change="markDirty('production')" aria-label="品质合格率"></el-input-number></el-form-item>
-            <el-form-item label="平均产出（件/小时）" :class="{'is-changed':hasChanged('production','overview','average_output')}"><el-input-number v-model="production.overview.average_output" :min="0" :precision="2" :controls="false" @change="markDirty('production')" aria-label="平均产出"></el-input-number></el-form-item>
+            <el-form-item label="总计划产量（件）"><span class="number-text" data-testid="overview-planned">{{fmt(productionTotals.planned_qty)}}</span></el-form-item>
+            <el-form-item label="实际完成（件）"><span class="number-text" data-testid="overview-actual">{{fmt(productionTotals.actual_qty)}}</span></el-form-item>
+            <el-form-item label="设备综合效率（%）"><span class="number-text" data-testid="overview-oee">{{percent(productionTotals.oee_percent)}}</span></el-form-item>
+            <el-form-item label="品质合格率（%）"><span class="number-text" data-testid="overview-quality">{{percent(productionTotals.quality_percent)}}</span></el-form-item>
+            <el-form-item label="平均产出（件/小时）"><span class="number-text" data-testid="overview-average">{{fmt(productionTotals.average_output)}}</span></el-form-item>
           </el-form>
           <div class="section-toolbar" id="downtimeSection"><h2>停机时段</h2><el-button @click="addDowntime"><svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16"></path></svg>新增时段</el-button></div>
           <div class="editor-card"><el-table :data="production.downtimes" row-key="_key" class="editable-table" empty-text="暂无停机记录" data-testid="downtime-table" :row-class-name="scope=>rowClass('production','downtimes',scope.row)" :cell-class-name="scope=>cellClass('production','downtimes',scope)">
