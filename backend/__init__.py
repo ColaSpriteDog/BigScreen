@@ -37,7 +37,7 @@ def create_app(configuration=None):
     app = Flask(__name__, static_folder=str(root / "static"), static_url_path="/static")
     app.request_class = InventoryRequest
     app.config.update(DATABASE=os.environ.get("BIGSCREEN_DATABASE", str(root / "data" / "dashboard.sqlite3")),
-                      BUSINESS_TIMEZONE=os.environ.get("BIGSCREEN_TIMEZONE", "America/Detroit"),
+                      BUSINESS_TIMEZONE=os.environ.get("BIGSCREEN_TIMEZONE", "Asia/Shanghai"),
                       NOW_PROVIDER=utc_now, MAX_CONTENT_LENGTH=2 * 1024 * 1024,
                       SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
                       PERMANENT_SESSION_LIFETIME=timedelta(hours=12))

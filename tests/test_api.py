@@ -1,6 +1,15 @@
 import pytest
 
 
+def test_new_database_defaults_to_china_standard_time(tmp_path):
+    """验证新数据库默认业务时区；tmp_path 为隔离目录；断言首次初始化使用中国标准时间。"""
+    from backend import create_app
+
+    app = create_app({'TESTING': True, 'DATABASE': str(tmp_path / 'default-zone.sqlite3')})
+    with app.test_client() as instance:
+        assert instance.get('/api/dashboard').get_json()['timezone'] == 'Asia/Shanghai'
+
+
 def test_empty_database_has_configuration_but_no_demo_business_data(client):
     """验证首次启动；client 为接口客户端；断言仅有配置且没有模拟业务数量。"""
     response = client.get('/api/dashboard')

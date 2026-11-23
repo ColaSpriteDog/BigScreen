@@ -31,7 +31,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe server.py --port 8088 --database D:\BigScreenData\dashboard.sqlite3
 ```
 
-业务时区在“流程与设置”页面修改，初始默认为 `America/Detroit`；中国现场可改为 `Asia/Shanghai`。业务日期、停机区间和安全天数统一采用该时区。
+业务时区在“流程与设置”页面修改，初始默认为 `Asia/Shanghai`（中国标准时间）。业务日期、停机区间和安全天数统一采用该时区。
 
 ## 编辑与展示
 
