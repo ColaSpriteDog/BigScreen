@@ -16,6 +16,7 @@ def test_login_page_responsive_and_rejects_wrong_password(browser, live_server, 
         page.goto(live_server + '/edit')
         expect(page).to_have_url(live_server + '/login')
         Path('output/playwright').mkdir(parents=True, exist_ok=True)
+        page.evaluate("Promise.all(document.getAnimations().filter(animation=>animation.effect.getTiming().iterations!==Infinity).map(animation=>animation.finished))")
         page.screenshot(path=f'output/playwright/login-{width}.png', full_page=True)
         page.get_by_label('登录账号', exact=True).fill('admin')
         page.get_by_label('密码', exact=True).fill('wrong')
@@ -32,6 +33,38 @@ def test_login_page_responsive_and_rejects_wrong_password(browser, live_server, 
         expect(page).to_have_url(live_server + '/login')
         page.goto(live_server + '/edit')
         expect(page).to_have_url(live_server + '/login')
+
+
+@pytest.mark.parametrize('width,height', [(1440, 900), (375, 812)])
+@pytest.mark.parametrize('motion', ['no-preference', 'reduce'])
+def test_login_background_moves_and_logo_has_transparent_background(browser, live_server, width, height, motion):
+    """验证动效与透明标志；浏览器、服务、尺寸和系统动态设置为参数；断言无斜线、背景实际位移且标志透明。"""
+    with browser.new_context(viewport={'width': width, 'height': height}, reduced_motion=motion) as context:
+        page = context.new_page()
+        page.goto(live_server + '/login')
+        assert page.locator('.light-beam').count() == 0
+        expect(page.locator('.brand-logo')).to_have_attribute('src', '/assets/gulian-logo-login.png')
+        assert page.locator('.brand-logo').evaluate("""async image => {
+            await image.decode();
+            const canvas = document.createElement('canvas');
+            canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+            const context = canvas.getContext('2d');
+            context.drawImage(image, 0, 0);
+            return [[0,0],[canvas.width-1,0],[0,canvas.height-1],[canvas.width-1,canvas.height-1]]
+                .every(([x,y])=>context.getImageData(x,y,1,1).data[3]===0);
+        }""")
+        assert page.locator('.particle').evaluate_all("""items => items.some(element => {
+            const rect = element.getBoundingClientRect();
+            return Number(getComputedStyle(element).opacity) > .2 && rect.top > 0 && rect.bottom < innerHeight;
+        })""")
+        initial = page.locator('.glow-1, .glow-2, .p1').evaluate_all('(items)=>items.map(element=>element.getBoundingClientRect().toJSON())')
+        page.wait_for_function("""initial => [...document.querySelectorAll('.glow-1, .glow-2, .p1')]
+            .every((element,index)=>{
+                const rect=element.getBoundingClientRect();
+                return Math.hypot(rect.x-initial[index].x,rect.y-initial[index].y)>12;
+            })""", arg=initial)
+        assert page.locator('.bg-layer').evaluate('(element)=>element.getAnimations({subtree:true}).every(animation=>animation.playState==="running")')
+        assert page.evaluate('document.documentElement.scrollWidth') == width
 
 
 def test_employee_management_create_edit_disable_delete(ui_context, live_server):

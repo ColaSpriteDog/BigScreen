@@ -7,11 +7,15 @@
   const toggle = document.getElementById("togglePassword");
   const button = document.getElementById("loginButton");
   const errorBox = document.getElementById("loginError");
+  const idleButtonText = button.textContent;
+  const eyeOpen = document.getElementById("eye-open");
+  const eyeClosed = document.getElementById("eye-closed");
   /** 切换密码可见性；无参数；无返回值，同步按钮的辅助功能状态。 */
   toggle.addEventListener("click", () => {
     const visible = password.type === "password";
     password.type = visible ? "text" : "password";
-    toggle.textContent = visible ? "隐藏" : "显示";
+    eyeOpen.style.display = visible ? "none" : "block";
+    eyeClosed.style.display = visible ? "block" : "none";
     toggle.setAttribute("aria-label", visible ? "隐藏密码" : "显示密码");
     toggle.setAttribute("aria-pressed", String(visible));
   });
@@ -32,7 +36,7 @@
       errorBox.focus();
     } finally {
       button.disabled = false;
-      button.textContent = "登录";
+      button.textContent = idleButtonText;
     }
   });
 })();
