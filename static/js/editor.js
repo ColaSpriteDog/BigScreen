@@ -50,6 +50,7 @@
         baselines: {}, employees: { items: [] }, currentEmployee: null,
         production: { lines: [], overview: {}, downtimes: [] }, inventory: { raw: [], semi: [] },
         warehouseImport: null, warehouseDialogVisible: false, warehouseMonth: "",
+        productionImport: null, productionDialogVisible: false, productionImportMonth: "", productionImportSelection: [], productionOverwrite: false,
         sales: { order_qty: null, items: [] }, settingsForm: { timezone: "UTC", safety_start_date: null, lines: [], processes: [] } };
     },
     computed: {
@@ -156,6 +157,7 @@
         this.version = snapshot.version;
         this.businessDate = snapshot.business_date;
         if (!this.warehouseMonth) this.warehouseMonth = snapshot.business_date.slice(0, 7);
+        if (!this.productionImportMonth) this.productionImportMonth = snapshot.business_date.slice(0, 7);
         this.timezone = snapshot.settings.timezone;
         this.serverTime = snapshot.server_time;
         this.savedAt = snapshot.version ? snapshot.updated_at : "";
@@ -339,6 +341,60 @@
           // 同一物料继续使用原 ID，保存时才能保留首次录入人和未变化行的修改记录。
           return previous ? { ...previous, ...values, specification: previous.specification, warehouse: previous.warehouse } : { ...values, _key: this.newKey() };
         });
+      },
+      /** 上传月生产表；event 为文件事件；返回预览 Promise，保留未保存草稿并默认使用业务当前月。 */
+      async previewProductionFile(event) {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file || this.loading || this.saving || !this.moduleReady) return;
+        this.errorMessage = "";
+        if (this.isDirty) this.errorMessage = "请先保存或放弃当前日报修改，再导入月报";
+        else if (!this.productionImportMonth) this.errorMessage = "请选择导入月份";
+        else if (!/\.(xls|xlsx)$/i.test(file.name) || file.size > 160 * 1024 * 1024) this.errorMessage = "请选择不超过 160 MiB 的 .xls 或 .xlsx 文件";
+        if (this.errorMessage) { await this.focusError(); return; }
+        this.loading = true;
+        this.productionImport = null;
+        this.productionImportSelection = [];
+        this.productionOverwrite = false;
+        try {
+          const body = new FormData();
+          body.append("file", file);
+          this.productionImport = { ...await BoardAPI.request("/api/production/" + this.productionImportMonth + "/preview",
+            { method: "POST", formData: body, timeout: 120000 }), filename: file.name };
+          this.productionDialogVisible = true;
+          await this.$nextTick();
+          this.$refs.productionImportTable?.toggleAllSelection();
+        } catch (error) {
+          if (error.status === 401) this.handleSessionExpired();
+          this.errorMessage = error.message;
+        } finally {
+          this.loading = false;
+          if (this.errorMessage) await this.focusError();
+        }
+      },
+      /** 判断导入行是否可选；row 为预览记录；返回非未来日期可选，未来日期仅供查看。 */
+      productionImportSelectable(row) { return !row.future; },
+      /** 保存选择范围；rows 为预览勾选行；无返回值，提交时只写入这些日期和产线。 */
+      selectProductionImport(rows) { this.productionImportSelection = rows; },
+      /** 原子保存生产导入；无参数；返回 Promise，日报与标准一起提交，失败保留预览和选择。 */
+      async saveProductionImport() {
+        if (this.saving || !this.productionImport || !this.productionImportSelection.length) return;
+        this.saving = true;
+        this.errorMessage = "";
+        try {
+          const result = await BoardAPI.request("/api/production/" + this.productionImport.month + "/import", { method: "POST", body: {
+            version: this.productionImport.version, items: this.productionImportSelection,
+            standards: this.productionImport.standards, overwrite: this.productionOverwrite,
+          } });
+          this.savedAt = result.updated_at;
+          this.productionDialogVisible = false;
+          BoardAPI.notifySaved();
+          ElementPlus.ElMessage.success("生产日报和标准产量已导入");
+          await this.loadModule("production");
+        } catch (error) {
+          if (error.status === 401) this.handleSessionExpired();
+          this.errorMessage = error.message;
+        } finally { this.saving = false; }
       },
       /** 上传仓库日报；event 为文件选择事件；返回 Promise，一次解析库存和所选月份出货，预览不改变草稿。 */
       async previewWarehouseFile(event) {

@@ -1,0 +1,150 @@
+"""按月份解析生产日报的数量、工时及异常停机，仅使用已保存值，不执行公式或批注。"""
+
+from calendar import monthrange
+from decimal import Decimal
+import re
+
+from .domain import ValidationError, parse_month
+from .inventory_import import INVALID_CELL, cell_text, parse_excel_sheet, stock_number
+
+
+# 行号来自约定模板；实际与报废必须读取明细，不能把空白明细的汇总公式零值当作已录入。
+LAYOUTS = (
+    (1, "激光切割", "米", [(26, "切割线周长"), (36, "切割线周长")],
+     [(29, "报废米数"), (39, "报废米数")], [(25, "标准产能（米）"), (35, "标准产能（米）")]),
+    (2, "机器人点焊", "件", [(23, "实际产能R4"), (28, "实际产能R5"), (33, "实际产能R6"),
+     (41, "实际产能R4"), (46, "实际产能R5"), (51, "实际产能R6")],
+     [(24, "报废R4"), (29, "报废R5"), (34, "报废R6"), (42, "报废R4"), (47, "报废R5"), (52, "报废R6")],
+     [(22, "标准产能R4"), (27, "标准产能R5"), (32, "标准产能R6"), (40, "标准产能R4"),
+      (45, "标准产能R5"), (50, "标准产能R6")]),
+    (3, "激光焊接", "件", [(25, "实际产能左"), (30, "实际产能右"), (38, "实际产能左"), (43, "实际产能右")],
+     [(26, "报废左"), (31, "报废右"), (39, "报废左"), (44, "报废右")],
+     [(24, "标准产能左"), (29, "标准产能右"), (37, "标准产能左"), (42, "标准产能右")]),
+    (4, "激光焊接 (B)", "件", [(25, "实际产能左"), (30, "实际产能右"), (38, "实际产能左"), (43, "实际产能右")],
+     [(26, "报废左"), (31, "报废右"), (39, "报废左"), (44, "报废右")],
+     [(24, "标准产能左"), (29, "标准产能右"), (37, "标准产能左"), (42, "标准产能右")]),
+)
+
+HOUR_ROWS = {1: (24, 34), 2: (21, 39), 3: (23, 36), 4: (23, 36)}
+
+
+def parse_daily_hours(data, day, identifier, sheet, formula_cells, standard_qty):
+    """提取日工时；data/day 为源行与日序，其他参数为产线、表名、公式及日标准；返回工时、节拍及预览警告。"""
+    column = day + 1
+    warnings = []
+
+    def hours(row):
+        """读取小时数；row 为一基行号；返回非负小数，错误包含表名、日期和行号。"""
+        label = f"“{sheet}”第 {day} 日第 {row} 行"
+        raw = data[row - 1][column] if row <= len(data) and column < len(data[row - 1]) else None
+        if raw is INVALID_CELL:
+            raise ValidationError(label + "工时公式缓存缺失或错误")
+        return stock_number(raw, label + "工时", optional=True)
+
+    planned = None
+    abnormal = None
+    try:
+        values = []
+        for row in HOUR_ROWS[identifier]:
+            if row > len(data) or cell_text(data[row - 1][1]) != "工时（H）":
+                raise ValidationError(f"“{sheet}”第 {row} 行应为工时（H）")
+            value = hours(row)
+            if value is None:
+                raise ValidationError(f"“{sheet}”第 {day} 日第 {row} 行工时为空")
+            values.append(value)
+        planned = float(sum(Decimal(str(value)) for value in values))
+        if planned > 24:
+            raise ValidationError(f"“{sheet}”第 {day} 日白夜班总工时不能超过 24 小时")
+        if identifier in (3, 4):
+            stops = []
+            for index, candidates in enumerate(((28,), (33,), (41,), (45, 46))):
+                matching = [row for row in candidates if row <= len(data)
+                            and cell_text(data[row - 1][1]) == "异常停机工时"]
+                if len(matching) != 1:
+                    raise ValidationError(f"“{sheet}”第 {candidates[0]} 行附近缺少唯一的异常停机工时")
+                row = matching[0]
+                formula = formula_cells.get((row, column), "")
+                # 源模板曾将报废率公式放在停机行，不能把其缓存小数当成小时。
+                rate_formula = rf"=\$?[A-Z]+\$?{44}\s*/\s*\$?[A-Z]+\$?{43}"
+                if formula == "%" or (index == 3 and re.fullmatch(rate_formula, formula, re.IGNORECASE)):
+                    raise ValidationError(f"“{sheet}”第 {day} 日第 {row} 行是报废率公式，请修正异常停机行")
+                stop = hours(row) or 0
+                if stop > values[index // 2] + 1e-8:
+                    raise ValidationError(f"“{sheet}”第 {day} 日第 {row} 行异常停机 {stop:g} 小时超过班次工时")
+                stops.append(stop)
+            # 左右件共用班次工时，停机小时按各明细累计；不与空白的班次合计行重复相加。
+            if stops[0] + stops[1] > values[0] + 1e-8 or stops[2] + stops[3] > values[1] + 1e-8:
+                raise ValidationError(f"“{sheet}”第 {day} 日左右件异常停机合计超过班次工时，请核对重叠停机")
+            abnormal = float(sum(Decimal(str(value)) for value in stops))
+    except ValidationError as error:
+        warnings.append(str(error))
+    result = {"warnings": warnings, "abnormal_hours": abnormal, "ideal_cycle_hours": None}
+    if planned is not None and 0 <= planned <= 24:
+        result["planned_hours"] = planned
+        if planned > 0 and standard_qty > 0:
+            result["ideal_cycle_hours"] = planned / standard_qty
+    return result
+
+
+def parse_production_rows(rows, month, layout, formula_cells=None):
+    """解析单条产线；rows/month/layout 为缓存、月份和映射，formula_cells 为公式位置；返回日报、工时与标准。"""
+    identifier, sheet, unit, actual_rows, defect_rows, standard_rows = layout
+    data = list(rows)
+    days = monthrange(int(month[:4]), int(month[5:]))[1]
+    for row, label in actual_rows + defect_rows + standard_rows:
+        if row > len(data) or len(data[row - 1]) < 2 or cell_text(data[row - 1][1]) != label:
+            raise ValidationError(f"“{sheet}”第 {row} 行应为“{label}”，请核对生产日报模板")
+
+    def value(row, day):
+        """读取单日源值；row 为一基行号、day 为日序；返回数字或空值，错误附带工作表和单元格位置。"""
+        column = day + 1
+        source = data[row - 1][column] if len(data[row - 1]) > column else None
+        label = f"“{sheet}”第 {row} 行第 {day} 日"
+        if source is INVALID_CELL:
+            raise ValidationError(label + "存在 Excel 错误或公式缓存缺失，请重新计算并保存")
+        return stock_number(source, label, integer=unit == "件", optional=True)
+
+    def total(values):
+        """汇总同单位数量；values 为含空值的数字列表；返回精确求和结果，全空保持为空。"""
+        known = [Decimal(str(item)) for item in values if item is not None]
+        return float(sum(known)) if known else None
+
+    items, standards = [], []
+    for day in range(1, days + 1):
+        standard_values = [value(row, day) for row, _ in standard_rows]
+        if any(item is None for item in standard_values):
+            raise ValidationError(f"“{sheet}”第 {day} 日标准产量不完整")
+        standards.append(total(standard_values))
+        actual = total([value(row, day) for row, _ in actual_rows])
+        defects = total([value(row, day) for row, _ in defect_rows])
+        if actual is None:
+            if defects not in (None, 0):
+                raise ValidationError(f"“{sheet}”第 {day} 日有报废但未填写实际产量")
+            continue
+        if defects is not None and defects > actual:
+            raise ValidationError(f"“{sheet}”第 {day} 日报废数量大于实际产量")
+        timing = parse_daily_hours(data, day, identifier, sheet, formula_cells or {}, standards[-1])
+        items.append({"date": f"{month}-{day:02d}", "line_id": identifier, "unit": unit,
+                      "actual_qty": actual, "defect_qty": defects, "sheet": sheet, **timing})
+    if len(set(standards)) != 1:
+        raise ValidationError(f"“{sheet}”各日标准产量不一致，系统使用固定标准日产量，请先统一")
+    # 短月份模板仍保留三十一列；标准模板值可忽略，但不能静默丢弃超出月份的实际生产数量。
+    for day in range(days + 1, 32):
+        if any(value(row, day) not in (None, 0) for row, _ in actual_rows + defect_rows):
+            raise ValidationError(f"“{sheet}”第 {day} 日有数量，但 {month} 没有该日期")
+    return {"items": items, "line_id": identifier, "sheet": sheet, "unit": unit, "standard_qty": standards[0]}
+
+
+def parse_production_file(upload, month):
+    """解析整月四线日报；upload 为上传流、month 为用户选择月份；返回预览数据，不保存文件或写库。"""
+    parse_month(month)
+    items, standards = [], []
+    for layout in LAYOUTS:
+        formulas = {}
+        result = parse_excel_sheet(upload, cell_text(layout[1]),
+            lambda rows: parse_production_rows(rows, month, layout, formulas), formula_cells=formulas)
+        items.extend(result.pop("items"))
+        standards.append(result)
+    if not items:
+        raise ValidationError("文件中没有已录入的实际产量")
+    return {"month": month, "items": sorted(items, key=lambda item: (item["date"], item["line_id"])), "standards": standards}

@@ -26,6 +26,11 @@ def settings(db):
     return dict(db.execute("SELECT * FROM screen_settings WHERE id=1").fetchone())
 
 
+def production_unit(line_id):
+    """读取固定产线计量单位；line_id 为产线标识；返回落料线的米或其他产线的件。"""
+    return "米" if line_id == 1 else "件"
+
+
 def object_value(value):
     """校验对象载荷；value 为任意输入；返回字典，非对象时抛出校验异常。"""
     if not isinstance(value, dict):
@@ -91,9 +96,12 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True):
     current_stops = downtime_rows(db, today, zone)
     selected_stops = current_stops if day == today else downtime_rows(db, day, zone)
     for line in lines:
+        line["unit"] = production_unit(line["id"])
         line.update(actual_qty=output.get(line["id"], {}).get("actual_qty"),
                     defect_qty=output.get(line["id"], {}).get("defect_qty"),
-                    planned_hours=output.get(line["id"], {}).get("planned_hours", 24))
+                    planned_hours=output.get(line["id"], {}).get("planned_hours", 24),
+                    abnormal_hours=output.get(line["id"], {}).get("abnormal_hours"),
+                    ideal_cycle_hours=output.get(line["id"], {}).get("ideal_cycle_hours"))
         runtime = line_runtime(now, zone, [item for item in current_stops if item["line_id"] == line["id"]], line["planned_hours"])
         if day != today:
             selected_runtime = line_runtime(now, zone, [item for item in selected_stops if item["line_id"] == line["id"]], line["planned_hours"], day)
@@ -128,7 +136,8 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True):
             audit.attach([line], "production_line", lookup)
             line["_configuration_audit"] = line.pop("_audit")
             source = {"work_date": day, "line_id": line["id"], "actual_qty": line["actual_qty"], "defect_qty": line["defect_qty"],
-                      "planned_hours": line["planned_hours"]}
+                      "planned_hours": line["planned_hours"], "abnormal_hours": line["abnormal_hours"],
+                      "ideal_cycle_hours": line["ideal_cycle_hours"]}
             audit.attach([source], "production_daily", lookup, line["id"] in output)
             line["_audit"] = source["_audit"]
         audit.attach([result["production"]["overview"]], "daily_overview", lookup, bool(overview))
@@ -244,15 +253,22 @@ def save_production(db, payload, day, now):
     known = validate_line_ids(db, lines)
     existing_hours = {row["line_id"]: row["planned_hours"] for row in db.execute(
         "SELECT line_id,planned_hours FROM production_daily WHERE work_date=?", (day,))}
+    previous = {row["line_id"]: row for row in db.execute("SELECT * FROM production_daily WHERE work_date=?", (day,))}
     for item in lines:
         planned_hours = number(item.get("planned_hours", existing_hours.get(item["id"], 24)), "计划生产时长", maximum=24)
-        actual = number(item.get("actual_qty"), "实际产量", integer=True, optional=True)
-        defects = number(item.get("defect_qty"), "不良数量", integer=True, optional=True)
+        actual = number(item.get("actual_qty"), "实际产量", integer=item["id"] != 1, optional=True)
+        defects = number(item.get("defect_qty"), "不良数量", integer=item["id"] != 1, optional=True)
         if defects is not None and (actual is None or defects > actual):
             raise ValidationError("不良数量不能大于实际产量，且必须先填写实际产量")
-        db.execute("INSERT INTO production_daily(line_id,work_date,actual_qty,defect_qty,planned_hours) VALUES(?,?,?,?,?) "
+        abnormal = number(item.get("abnormal_hours", previous[item["id"]]["abnormal_hours"] if item["id"] in previous else None),
+                          "异常停机工时", optional=True, maximum=planned_hours)
+        # 理想节拍来自导入的标准产能和原始工时，不接受客户端修改或因补录工时而漂移。
+        cycle = previous[item["id"]]["ideal_cycle_hours"] if item["id"] in previous else None
+        db.execute("INSERT INTO production_daily(line_id,work_date,actual_qty,defect_qty,planned_hours,abnormal_hours,ideal_cycle_hours) "
+                   "VALUES(?,?,?,?,?,?,?) "
                    "ON CONFLICT(line_id,work_date) DO UPDATE SET actual_qty=excluded.actual_qty,defect_qty=excluded.defect_qty,"
-                   "planned_hours=excluded.planned_hours", (item["id"], day, actual, defects, planned_hours))
+                   "planned_hours=excluded.planned_hours,abnormal_hours=excluded.abnormal_hours",
+                   (item["id"], day, actual, defects, planned_hours, abnormal, cycle))
     overview = object_value(payload.get("overview"))
     values = [number(overview.get(field), label, integer=integer, optional=True, maximum=maximum)
               for field, label, integer, maximum in [
@@ -379,6 +395,62 @@ def save_sales(db, payload, month):
     db.executemany("INSERT INTO shipment_month_item(id,month,part_no,quantity,name,shipment_date,sort_order) VALUES(?,?,?,?,?,?,?)", prepared)
 
 
+def save_production_import(db, payload, month, now):
+    """原子导入月日报及标准；payload 为勾选记录与标准、month 为月份、now 为时间；返回写入条数，空字段保留旧值。"""
+    parse_month(month)
+    items = array_value(payload.get("items"), "导入日报", 124)
+    standards = array_value(payload.get("standards"), "导入标准", 4)
+    validate_line_ids(db, [{"id": item.get("line_id")} for item in standards])
+    overwrite = payload.get("overwrite", False)
+    if type(overwrite) is not bool:
+        raise ValidationError("覆盖已有数据必须为勾选值")
+    if not items:
+        raise ValidationError("请至少选择一条日报")
+    today = now.astimezone(ZoneInfo(settings(db)["timezone"])).date().isoformat()
+    seen = set()
+    for item in items:
+        identifier = number(item.get("line_id"), "产线ID", integer=True)
+        if identifier not in {1, 2, 3, 4}:
+            raise ValidationError("产线不存在")
+        day = item.get("date")
+        parse_date(day)
+        if day[:7] != month or day > today:
+            raise ValidationError("日报日期必须属于导入月份，且不能晚于今天")
+        if (day, identifier) in seen:
+            raise ValidationError("导入日报的日期与产线重复")
+        seen.add((day, identifier))
+        actual = number(item.get("actual_qty"), "实际产量", integer=identifier != 1)
+        defects = number(item.get("defect_qty"), "不良数量", integer=identifier != 1, optional=True)
+        previous = db.execute("SELECT * FROM production_daily WHERE work_date=? AND line_id=?", (day, identifier)).fetchone()
+        hours = number(item.get("planned_hours", previous["planned_hours"] if previous else 24), "计划生产工时", maximum=24)
+        abnormal = number(item.get("abnormal_hours", previous["abnormal_hours"] if previous else None),
+                          "异常停机工时", optional=True, maximum=hours)
+        cycle = number(item.get("ideal_cycle_hours", previous["ideal_cycle_hours"] if previous else None), "理想单件工时", optional=True)
+        if cycle == 0:
+            raise ValidationError("理想单件工时必须大于零")
+        # 未填写报废时保留已有值；只有用户勾选覆盖才接受改变已录入数量。
+        if previous is not None:
+            if not overwrite and any(new is not None and previous[field] is not None and new != previous[field]
+                                     for field, new in (("actual_qty", actual), ("defect_qty", defects),
+                                                        ("planned_hours", hours), ("abnormal_hours", abnormal),
+                                                        ("ideal_cycle_hours", cycle))):
+                raise ValidationError(f"{day} 产线 {identifier:02d} 已有不同数据，请核对预览并勾选覆盖")
+            if defects is None:
+                defects = previous["defect_qty"]
+        if defects is not None and defects > actual:
+            raise ValidationError(f"{day} 产线 {identifier:02d} 不良数量大于实际产量")
+        db.execute("INSERT INTO production_daily(line_id,work_date,actual_qty,defect_qty,planned_hours,abnormal_hours,ideal_cycle_hours) "
+                   "VALUES(?,?,?,?,?,?,?) ON CONFLICT(line_id,work_date) DO UPDATE SET "
+                   "actual_qty=excluded.actual_qty,defect_qty=excluded.defect_qty,planned_hours=excluded.planned_hours,"
+                   "abnormal_hours=excluded.abnormal_hours,ideal_cycle_hours=excluded.ideal_cycle_hours",
+                   (identifier, day, actual, defects, hours, abnormal, cycle))
+    for item in standards:
+        identifier = item["line_id"]
+        value = number(item.get("standard_qty"), "标准日产量", integer=identifier != 1)
+        db.execute("UPDATE production_line SET standard_qty=? WHERE id=?", (value, identifier))
+    return len(items)
+
+
 def save_settings(db, payload, now):
     """保存配置；payload 为时区、安全日期、产线和独立节点配置；无返回值。"""
     zone = text(payload.get("timezone"), "业务时区")
@@ -402,7 +474,7 @@ def save_settings(db, payload, now):
         raise ValidationError("趋势图至少选择一条产线")
     for line in lines:
         name = text(line.get("name"), "产线名称", maximum=20)
-        standard = number(line.get("standard_qty"), "标准日产量", integer=True, optional=True)
+        standard = number(line.get("standard_qty"), "标准日产量", integer=line["id"] != 1, optional=True)
         db.execute("UPDATE production_line SET name=?,standard_qty=?,show_in_trend=? WHERE id=?",
                    (name, standard, visibility[line["id"]], line["id"]))
     nodes = array_value(payload.get("processes"), "独立工序配置", 5)

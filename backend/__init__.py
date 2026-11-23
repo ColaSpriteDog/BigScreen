@@ -15,6 +15,7 @@ from .domain import ValidationError
 from .inventory_import import MAX_FILE_BYTES, parse_inventory_file
 from .shipment_import import parse_shipment_file
 from .warehouse_import import parse_warehouse_file
+from .production_import import parse_production_file
 from . import audit, auth, service
 
 
@@ -112,7 +113,7 @@ def create_app(configuration=None):
         now = app.config["NOW_PROVIDER"]()
         with service.versioned_write(db, payload, now, g.employee, audit.write_scope(writer.__name__, arguments)):
             result = writer(db, payload, *arguments, now) if writer in {
-                service.save_production, service.save_settings, service.start_downtime} else writer(db, payload, *arguments)
+                service.save_production, service.save_production_import, service.save_settings, service.start_downtime} else writer(db, payload, *arguments)
         return jsonify(version=service.settings(db)["version"], updated_at=now.isoformat(), result=result)
 
     @app.get("/")
@@ -204,6 +205,47 @@ def create_app(configuration=None):
     def production_write(day):
         """保存指定日期日报；day 为 YYYY-MM-DD；返回新版本，任一错误会回滚整批。"""
         return mutate(service.save_production, day)
+
+    @app.post("/api/production/<month>/preview")
+    def production_preview(month):
+        """预览四线月日报；month 为目标月份、file 为上传；返回源值、旧值和冲突，不写库。"""
+        request.max_content_length = MAX_FILE_BYTES + 1024 * 1024
+        if request.content_length and request.content_length > request.max_content_length:
+            raise ValidationError("Excel 文件不能超过 160 MiB")
+        upload = request.files.get("file")
+        if upload is None or not upload.filename:
+            raise ValidationError("请选择需要解析的 Excel 文件")
+        try:
+            result = parse_production_file(upload, month)
+        finally:
+            upload.close()
+        db = get_db()
+        now = app.config["NOW_PROVIDER"]()
+        with service.consistent_read(db):
+            result["version"] = service.settings(db)["version"]
+            zone = service.settings(db)["timezone"]
+            today = now.astimezone(ZoneInfo(zone)).date().isoformat()
+            lines = {row["id"]: row["name"] for row in db.execute("SELECT id,name FROM production_line")}
+            existing = {(row["work_date"], row["line_id"]): row for row in db.execute(
+                "SELECT * FROM production_daily WHERE substr(work_date,1,7)=?", (month,))}
+            for item in result["items"]:
+                previous = existing.get((item["date"], item["line_id"]))
+                item["name"] = lines[item["line_id"]]
+                item["previous_actual"] = previous["actual_qty"] if previous is not None else None
+                item["previous_defect"] = previous["defect_qty"] if previous is not None else None
+                item["previous_hours"] = previous["planned_hours"] if previous is not None else None
+                item["previous_abnormal"] = previous["abnormal_hours"] if previous is not None else None
+                item["conflict"] = previous is not None and any(item.get(field) is not None and previous[field] is not None
+                    and item[field] != previous[field] for field in ("actual_qty", "defect_qty", "planned_hours", "abnormal_hours", "ideal_cycle_hours"))
+                item["future"] = item["date"] > today
+            for item in result["standards"]:
+                item["name"] = lines[item["line_id"]]
+        return jsonify(result)
+
+    @app.post("/api/production/<month>/import")
+    def production_import_write(month):
+        """保存勾选的月日报与文件标准；month 为月份；返回原子提交版本并记录当前录入人。"""
+        return mutate(service.save_production_import, month)
 
     @app.post("/api/warehouse/<month>/preview")
     def warehouse_preview(month):

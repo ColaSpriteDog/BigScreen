@@ -38,6 +38,9 @@ body { margin: 0; background: var(--editor-bg); color: var(--editor-ink); font: 
 .order-attribution { margin-top: 8px; }
 /* 导入沿用现有工具栏与表格，预览弹窗在小屏中保留内部滚动。 */
 .inventory-import-toolbar { display: flex; justify-content: flex-end; padding-top: 16px; }
+/* 生产导入月份与操作按钮并排，窄屏允许换行，沿用现有工具栏层级。 */
+.production-import-toolbar { gap: 10px; flex-wrap: wrap; padding: 0 0 16px; }
+.production-import-toolbar .el-date-editor { width: 150px; flex: none; }
 .warehouse-import-toolbar { flex-wrap: wrap; gap: 10px; padding: 0 0 16px; }
 /* 三类明细在弹窗正文中滚动，确认按钮始终可见。 */
 .warehouse-import-dialog { display: flex; flex-direction: column; overflow: hidden; }
@@ -159,6 +162,10 @@ h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spac
 .settings-form .el-select, .settings-form .el-date-editor { width: 100%; }
 .settings-form .el-input__wrapper, .settings-form .el-select__wrapper { min-height: 40px; }
 [data-testid='line-settings-table'] .el-table__body .el-table__cell { padding: 12px 0; }
+/* 产量列为单位预留空间，并统一输入框高度，避免单位换行和同行控件错位。 */
+[data-testid='line-settings-table'] .el-table__body td:nth-child(3) .cell { display: flex; align-items: center; gap: 8px; }
+[data-testid='line-settings-table'] .el-table__body td:nth-child(3) .el-input-number { flex: 1; width: 0; height: 36px; line-height: 36px; --el-input-height: 36px; }
+[data-testid='line-settings-table'] .el-table__body td:nth-child(3) .cell > span { flex: none; color: var(--editor-muted); font-size: 12px; white-space: nowrap; }
 .process-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .process-setting { display: flex; align-items: center; gap: 18px; padding: 15px; }
 .process-setting img { flex: 0 0 90px; width: 90px; height: 75px; object-fit: contain; border-radius: 4px; background: #10252f; }

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS production_line (
     id INTEGER PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
-    standard_qty INTEGER CHECK (standard_qty IS NULL OR standard_qty >= 0),
+    standard_qty REAL CHECK (standard_qty IS NULL OR standard_qty >= 0),
     process_id INTEGER NOT NULL REFERENCES process_node(id),
     show_in_trend INTEGER NOT NULL CHECK (show_in_trend IN (0, 1)),
     sort_order INTEGER NOT NULL
@@ -30,9 +30,11 @@ CREATE TABLE IF NOT EXISTS production_line (
 CREATE TABLE IF NOT EXISTS production_daily (
     line_id INTEGER NOT NULL REFERENCES production_line(id),
     work_date TEXT NOT NULL,
-    actual_qty INTEGER CHECK (actual_qty IS NULL OR actual_qty >= 0),
-    defect_qty INTEGER CHECK (defect_qty IS NULL OR defect_qty >= 0),
+    actual_qty REAL CHECK (actual_qty IS NULL OR actual_qty >= 0),
+    defect_qty REAL CHECK (defect_qty IS NULL OR defect_qty >= 0),
     planned_hours REAL NOT NULL DEFAULT 24 CHECK (planned_hours >= 0 AND planned_hours <= 24),
+    abnormal_hours REAL CHECK (abnormal_hours IS NULL OR abnormal_hours >= 0),
+    ideal_cycle_hours REAL CHECK (ideal_cycle_hours IS NULL OR ideal_cycle_hours > 0),
     CHECK (defect_qty IS NULL OR (actual_qty IS NOT NULL AND defect_qty <= actual_qty)),
     PRIMARY KEY (line_id, work_date)
 );

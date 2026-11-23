@@ -70,6 +70,10 @@ def initialize_database(path, zone, timestamp):
         if "planned_hours" not in daily_columns:
             connection.execute("ALTER TABLE production_daily ADD COLUMN planned_hours REAL NOT NULL DEFAULT 24 "
                                "CHECK (planned_hours >= 0 AND planned_hours <= 24)")
+        # 旧日报缺少停机汇总与理想节拍，保留空值，不能据此推断设备效率。
+        for column in ("abnormal_hours", "ideal_cycle_hours"):
+            if column not in daily_columns:
+                connection.execute(f"ALTER TABLE production_daily ADD COLUMN {column} REAL")
         migrate_shipment_details(connection)
         connection.execute(
             "INSERT OR IGNORE INTO screen_settings(id,timezone,updated_at) VALUES(1,?,?)",

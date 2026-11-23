@@ -116,7 +116,7 @@ def test_settings_form_saves_safety_start(ui_context, live_server):
     editor.get_by_role('spinbutton', name='标准日产量 01', exact=True).fill('1320')
     editor.get_by_test_id('save-button').click()
     expect(screen.locator('#safetyDays')).to_have_text('20')
-    expect(screen.locator('.line-card[data-line-id="1"] .data-list > div').first).to_have_text('标准产量（件/天）1,320')
+    expect(screen.locator('.line-card[data-line-id="1"] .data-list > div').first).to_have_text('标准产量（米/天）1,320')
 
 
 def test_quick_maintenance_and_resume_from_editor(ui_context, live_server, clock):

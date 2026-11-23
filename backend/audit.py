@@ -5,7 +5,7 @@ import json
 
 # 表名、主键及参与变更判断的业务字段均由服务端固定，排除版本号、排序及派生状态。
 TABLES = {
-    "production_daily": (("work_date", "line_id"), ("actual_qty", "defect_qty", "planned_hours")),
+    "production_daily": (("work_date", "line_id"), ("actual_qty", "defect_qty", "planned_hours", "abnormal_hours", "ideal_cycle_hours")),
     "daily_overview": (("work_date",), ("planned_qty", "actual_qty", "oee_percent", "quality_percent", "average_output")),
     "line_downtime": (("id",), ("line_id", "start_at", "end_at", "kind", "note")),
     "raw_material_stock": (("id",), ("material", "warehouse", "specification", "position", "quantity", "unit", "weight_kg", "cuttable_qty")),
@@ -27,6 +27,8 @@ def record_key(values):
 
 def write_scope(writer, arguments):
     """确定写请求影响范围；writer 为保存函数名、arguments 为日期等参数；返回固定表名及查询条件。"""
+    if writer == "save_production_import":
+        return {"production_daily": ("substr(work_date,1,7)=?", arguments), "production_line": ("1", ())}
     if writer == "save_production":
         return {"production_daily": ("work_date=?", arguments), "daily_overview": ("work_date=?", arguments),
                 "line_downtime": ("1", ())}
@@ -59,7 +61,7 @@ def capture(db, scope):
 def meaningful(table, values):
     """判断是否已有真实录入；table 为业务表、values 为字段元组或空值；返回是否应视为已保存记录。"""
     if table == "production_daily" and values is not None:
-        return any(value is not None for value in values[:2]) or values[2] not in (None, 24)
+        return any(value is not None for value in values[:2]) or values[2] not in (None, 24) or any(value is not None for value in values[3:])
     return values is not None and (table not in OPTIONAL_TABLES or any(value is not None for value in values))
 
 
