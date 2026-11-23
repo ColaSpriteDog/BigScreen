@@ -205,12 +205,20 @@ def dashboard_snapshot(db, now):
     snapshot = editor_snapshot(db, now, include_audit=False)
     day, zone = snapshot["date"], snapshot["settings"]["timezone"]
     lines = snapshot["production"]["lines"]
+    # 日报次日更新：卡片日指标读取业务时区昨日，当前运行状态仍使用今天的时长和停机记录。
+    production_date = (parse_date(day) - timedelta(days=1)).isoformat()
+    yesterday = {row["line_id"]: row for row in rows(db,
+        "SELECT line_id,actual_qty,defect_qty FROM production_daily WHERE work_date=?", (production_date,))}
     monthly = {row["line_id"]: row["quantity"] for row in rows(db,
         "SELECT line_id,SUM(actual_qty) AS quantity FROM production_daily WHERE work_date>=? AND work_date<=? GROUP BY line_id",
         (day[:7] + "-01", day))}
     for line in lines:
         line["monthly_qty"] = monthly.get(line["id"])
         line["defect_rate"] = ratio(line["defect_qty"], line["actual_qty"])
+        previous = yesterday.get(line["id"], {})
+        line["yesterday_qty"] = previous.get("actual_qty")
+        line["yesterday_defect_qty"] = previous.get("defect_qty")
+        line["yesterday_defect_rate"] = ratio(line["yesterday_defect_qty"], line["yesterday_qty"])
     # 趋势与本月产量统一按业务月初至今天取数，跨月后自动重新累计。
     today = parse_date(day)
     first = today.replace(day=1)
@@ -273,7 +281,7 @@ def dashboard_snapshot(db, now):
         process["alert"] = process["status"] not in {"running", "normal"}
     safe_start = snapshot["settings"]["safety_start_date"]
     return {"version": snapshot["version"], "updated_at": snapshot["updated_at"], "server_time": now.isoformat(),
-            "business_date": day, "timezone": zone, "lines": lines, "inventory": inventory,
+            "business_date": day, "production_date": production_date, "timezone": zone, "lines": lines, "inventory": inventory,
             "trend": {"dates": dates, "series": series, "totals": totals, "groups": groups,
                       "period_total": groups[0]["period_total"] if len(groups) == 1 else None, "reported_days": reported_days},
             "sales": sales, "overview": overview, "processes": processes,
