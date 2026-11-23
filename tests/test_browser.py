@@ -74,7 +74,9 @@ def test_production_and_sales_forms_update_actual_charts(ui_context, live_server
     editor.get_by_test_id('save-button').click()
     expect(screen.locator('#actualQty')).to_have_text('650（件）')
     expect(screen.locator('#completionRate')).to_have_text('65%')
-    screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series[0].data[29] === 700")
+    screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series[0].data.at(-1) === 700")
+    expect(screen.locator('.chart-heading')).to_have_text('当月产线产量趋势图')
+    assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().xAxis[0].data") == [f'2026-11-{day:02d}' for day in range(1, 22)]
     Path('output/playwright').mkdir(parents=True, exist_ok=True)
     editor.screenshot(path='output/playwright/editor-production.png', full_page=True)
     editor.get_by_role('tab', name='销售出货', exact=True).click()
@@ -342,7 +344,7 @@ def test_editable_names_and_trend_selection_update_chart_at_1440(ui_context, liv
         set_trend_visibility(editor, index, True)
     editor.get_by_test_id('save-button').click()
     expect(screen.locator('#trendLegend > span')).to_have_count(5)
-    expect(screen.locator('#trendTotal')).to_have_text('已录入累计：1,000（件）')
+    expect(screen.locator('#trendTotal')).to_have_text('本月累计：1,000（件）')
     expect(screen.locator('.line-card[data-line-id="1"] .line-header')).to_contain_text('一号生产线')
     screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 5")
     colors = screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.slice(1).map(series=>series.itemStyle.color)")
@@ -358,7 +360,7 @@ def test_editable_names_and_trend_selection_update_chart_at_1440(ui_context, liv
         set_trend_visibility(editor, index, False)
     editor.get_by_test_id('save-button').click()
     expect(screen.locator('#trendLegend > span')).to_have_count(2)
-    expect(screen.locator('#trendTotal')).to_have_text('已录入累计：200（件）')
+    expect(screen.locator('#trendTotal')).to_have_text('本月累计：200（件）')
     screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 2")
     assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series[1].itemStyle.color") == colors[1]
     editor.reload()

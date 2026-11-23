@@ -235,7 +235,7 @@
       label.append(mark, node("span", "legend-label", item.name));
       return label;
     }));
-    setText("trendTotal", `${data.trend.reported_days === 30 ? "30天累计" : "已录入累计"}：${quantity(data.trend.period_total)}`);
+    setText("trendTotal", `本月累计：${quantity(data.trend.period_total)}`);
     document.getElementById("trendTotal").title = "按所选产线汇总；任一所选产线未录入的日期不计入合计";
   }
 

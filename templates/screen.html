@@ -6,9 +6,9 @@
   <title>智能制造生产监控中心</title>
   <link rel="stylesheet" href="/static/css/screen.css?v=20261123-overview-height">
   <script defer src="/static/vendor/echarts.min.js"></script>
-  <script defer src="/static/js/model.js?v=20261123-unit-parens"></script>
+  <script defer src="/static/js/model.js?v=20261123-monthly-trend"></script>
   <script defer src="/static/js/api.js?v=20261123-import"></script>
-  <script defer src="/static/js/screen.js?v=20261123-line-daily-units"></script>
+  <script defer src="/static/js/screen.js?v=20261123-monthly-trend"></script>
 </head>
 <body>
   <svg class="symbol-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><symbol id="safety-icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter"><path d="m12 2 8 4v7c0 4-5 7-8 9-3-2-8-5-8-9V6l8-4Z"/><path d="m8 12 3 3 5-6"/></g></symbol></svg>
@@ -43,8 +43,8 @@
       </div>
     </section>
     <section class="panel chart-panel">
-      <div class="panel-title chart-title"><h2 class="chart-heading">30天内产线产量趋势图</h2><div class="chart-legend" id="trendLegend"></div><span class="trend-total" id="trendTotal">—</span></div>
-      <div id="newTrendChart" class="chart-box" role="img" aria-label="近30天产线产量趋势"></div>
+      <div class="panel-title chart-title"><h2 class="chart-heading">当月产线产量趋势图</h2><div class="chart-legend" id="trendLegend"></div><span class="trend-total" id="trendTotal">—</span></div>
+      <div id="newTrendChart" class="chart-box" role="img" aria-label="当月产线产量趋势"></div>
     </section>
     <section class="panel shipment-panel">
       <div class="panel-title">当月销售出货统计<span class="panel-note">TOP 8 型号</span></div>

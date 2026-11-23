@@ -12,6 +12,9 @@ def test_empty_database_has_configuration_but_no_demo_business_data(client):
     assert data['inventory']['raw'] == []
     assert data['sales']['shipped_qty'] is None
     assert data['safety_days'] is None
+    assert data['trend']['dates'] == [f'2026-11-{day:02d}' for day in range(1, 22)]
+    assert len(data['trend']['totals']) == 21
+    assert all(len(series['data']) == 21 for series in data['trend']['series'])
 
 
 def production_payload(client, day='2026-11-21'):

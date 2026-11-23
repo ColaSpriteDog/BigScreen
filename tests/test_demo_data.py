@@ -26,7 +26,7 @@ def test_demo_data_populates_screen_and_keeps_previous_database_backup(client, a
     assert [item['line_id'] for item in data['trend']['series']] == [1, 3, 4]
     assert [item['actual_qty'] for item in data['lines']] == [1280, 960, 1420, 1360]
     assert data['lines'][3]['status'] == 'maintenance'
-    assert data['trend']['reported_days'] == 30
+    assert data['trend']['reported_days'] == 21
     assert len(data['inventory']['raw']) == 8
     assert len(data['inventory']['semi']) == 10
     assert data['inventory']['raw_totals'] == [{'quantity': 41.5, 'unit': '卷'}]

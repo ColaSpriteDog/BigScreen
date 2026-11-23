@@ -163,14 +163,16 @@ def dashboard_snapshot(db, now):
     for line in lines:
         line["monthly_qty"] = monthly.get(line["id"])
         line["defect_rate"] = ratio(line["defect_qty"], line["actual_qty"])
-    first = parse_date(day) - timedelta(days=29)
-    dates = [(first + timedelta(days=index)).isoformat() for index in range(30)]
+    # 趋势与本月产量统一按业务月初至今天取数，跨月后自动重新累计。
+    today = parse_date(day)
+    first = today.replace(day=1)
+    dates = [(first + timedelta(days=index)).isoformat() for index in range(today.day)]
     outputs = {(item["work_date"], item["line_id"]): item["actual_qty"] for item in rows(db,
         "SELECT * FROM production_daily WHERE work_date>=? AND work_date<=?", (dates[0], day))}
     series = [{"line_id": line["id"], "name": line["name"],
                "data": [outputs.get((date, line["id"])) for date in dates]} for line in lines if line["show_in_trend"]]
     totals = []
-    for index in range(30):
+    for index in range(len(dates)):
         values = [item["data"][index] for item in series]
         totals.append(sum(values) if values and all(value is not None for value in values) else None)
     known = [value for value in totals if value is not None]
