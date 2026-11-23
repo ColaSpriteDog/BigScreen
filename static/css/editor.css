@@ -131,6 +131,8 @@ h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spac
 .editable-table .el-button + .el-button { margin-left: 8px; }
 .el-button { min-height: 40px; font-weight: 400; }
 .el-button + .el-button { margin-left: 0; }
+/* 导入弹窗底部按钮保留间距，避免相邻操作紧贴。 */
+.inventory-import-dialog .el-dialog__footer .el-button + .el-button { margin-left: 12px; }
 .el-button--small { min-height: 36px; padding: 8px 13px; }
 .el-button.is-link { min-height: 36px; }
 .el-button--danger.is-link { color: #a6414e; }

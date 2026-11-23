@@ -131,8 +131,8 @@ def parse_inventory_file(upload):
     return parse_excel_sheet(upload, "汇总表", parse_rows)
 
 
-def parse_excel_sheet(upload, sheet_name, parser, allow_dates=False, formula_cells=None):
-    """读取指定表；upload/parser 为上传与解析器，allow_dates 控制日期，formula_cells 可接收公式位置；返回解析结果。"""
+def parse_excel_sheet(upload, sheet_name, parser, allow_dates=False, formula_cells=None, number_formats=None):
+    """读取指定表；upload/parser 为上传与解析器，allow_dates 控制日期，后两参数接收公式及数字格式；返回解析结果。"""
     extension = Path(upload.filename or "").suffix.lower()
     if extension not in {".xls", ".xlsx"}:
         raise ValidationError("请选择 .xls 或 .xlsx 格式的仓库日报表")
@@ -147,16 +147,20 @@ def parse_excel_sheet(upload, sheet_name, parser, allow_dates=False, formula_cel
             content = upload.stream.read(MAX_FILE_BYTES + 1)
             if len(content) > MAX_FILE_BYTES:
                 raise ValidationError("Excel 文件不能超过 160 MiB")
-            workbook = xlrd.open_workbook(file_contents=content, on_demand=True, formatting_info=formula_cells is not None)
+            workbook = xlrd.open_workbook(file_contents=content, on_demand=True,
+                                         formatting_info=formula_cells is not None or number_formats is not None)
             sheets = {cell_text(name): name for name in workbook.sheet_names()}
             if sheet_name not in sheets:
                 raise ValidationError(f"Excel 中未找到“{sheet_name}”工作表")
             sheet = workbook.sheet_by_name(sheets[sheet_name])
-            if formula_cells is not None:
+            if formula_cells is not None or number_formats is not None:
                 for row in range(min(sheet.nrows, MAX_SHEET_ROWS + 1)):
                     for column in range(min(sheet.ncols, 256)):
                         style = workbook.xf_list[sheet.cell_xf_index(row, column)]
-                        if "%" in workbook.format_map[style.format_key].format_str:
+                        number_format = workbook.format_map[style.format_key].format_str
+                        if number_formats is not None:
+                            number_formats[(row + 1, column + 1)] = number_format
+                        if formula_cells is not None and "%" in number_format:
                             formula_cells[(row + 1, column + 1)] = "%"
             values = ([xlrd.xldate_as_datetime(cell.value, workbook.datemode)
                        if allow_dates and cell.ctype == xlrd.XL_CELL_DATE else
@@ -181,12 +185,14 @@ def parse_excel_sheet(upload, sheet_name, parser, allow_dates=False, formula_cel
             bounds = {"max_row": min(sheet.max_row or 1, MAX_SHEET_ROWS + 1),
                       "max_col": min(sheet.max_column or 1, 256)}
             # 仅记录公式文本供业务核对字段含义，不求值或执行公式。
-            if formula_cells is not None:
+            if formula_cells is not None or number_formats is not None:
                 for row in formula_sheet.iter_rows(**bounds):
                     for cell in row:
-                        if cell.data_type == "f":
+                        if number_formats is not None and cell.value is not None:
+                            number_formats[(cell.row, cell.column)] = cell.number_format
+                        if formula_cells is not None and cell.data_type == "f":
                             formula_cells[(cell.row, cell.column)] = cell.value
-                        elif "%" in (cell.number_format or ""):
+                        elif formula_cells is not None and "%" in (cell.number_format or ""):
                             formula_cells[(cell.row, cell.column)] = "%"
             values = ([cell.value if cell.data_type not in {"e", "b"} and (allow_dates or not cell.is_date)
                        and not (formula.data_type == "f" and cell.value is None and cell.data_type != "str")

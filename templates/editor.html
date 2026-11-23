@@ -164,7 +164,7 @@
     <el-dialog v-model="productionDialogVisible" title="生产日报导入预览" class="inventory-import-dialog" width="min(1100px, calc(100vw - 24px))" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving">
       <template v-if="productionImport">
         <p class="import-source">{{productionImport.filename}} · {{productionImport.month}}</p>
-        <p class="import-source">C列为1日，按所选月份读取。空白不覆盖已有记录；仅导入产量、报废量及标准产量，计划时长和停机记录保留。</p>
+        <p class="import-source">C列为1日，按所选月份读取。白夜班工时按源表显示值相加；空白不覆盖已有记录，已有差异需勾选覆盖。</p>
         <el-table :data="productionImport.standards" size="small" data-testid="production-standard-preview"><el-table-column prop="name" label="产线"></el-table-column><el-table-column prop="unit" label="单位" width="80"></el-table-column><el-table-column prop="standard_qty" label="更新标准日产量" width="150"><template #default="scope">{{fmt(scope.row.standard_qty)}}</template></el-table-column></el-table>
         <el-table ref="productionImportTable" :data="productionImport.items" max-height="300" :row-key="row=>row.date+'-'+row.line_id" @selection-change="selectProductionImport" data-testid="production-import-preview">
           <el-table-column type="selection" width="45" :selectable="productionImportSelectable"></el-table-column><el-table-column prop="date" label="日期" width="115"></el-table-column><el-table-column prop="name" label="产线" min-width="145"></el-table-column><el-table-column prop="unit" label="单位" width="60"></el-table-column>

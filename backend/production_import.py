@@ -1,7 +1,7 @@
 """按月份解析生产日报的数量、工时及异常停机，仅使用已保存值，不执行公式或批注。"""
 
 from calendar import monthrange
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import re
 
 from .domain import ValidationError, parse_month
@@ -28,8 +28,22 @@ LAYOUTS = (
 HOUR_ROWS = {1: (24, 34), 2: (21, 39), 3: (23, 36), 4: (23, 36)}
 
 
-def parse_daily_hours(data, day, identifier, sheet, formula_cells, standard_qty):
-    """提取日工时；data/day 为源行与日序，其他参数为产线、表名、公式及日标准；返回工时、节拍及预览警告。"""
+def displayed_hours(value, number_format):
+    """按源表显示精度取工时；value 为非负小时数，number_format 为 Excel 格式；返回舍入后的数值。"""
+    if number_format.lower() == "general":
+        return value
+    # 工时模板使用普通小数格式；先逐班四舍五入，再合计，避免显示 10.2 却按隐藏精度累计。
+    section = number_format.split(";")[0]
+    section = re.sub(r'"[^"]*"|\[[^\]]*\]|_.|\*.', "", section).strip()
+    match = re.fullmatch(r"[#,]*0(?:\.([0#]+))?", section)
+    if not match:
+        raise ValidationError("工时显示格式不支持，请使用普通数字格式")
+    decimals = len(match[1] or "")
+    return float(Decimal(str(value)).quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP))
+
+
+def parse_daily_hours(data, day, identifier, sheet, formula_cells, standard_qty, number_formats=None):
+    """提取日工时；参数含源行、日序、产线、公式、日标准及数字格式；返回按显示值合计的工时、节拍和警告。"""
     column = day + 1
     warnings = []
 
@@ -51,7 +65,7 @@ def parse_daily_hours(data, day, identifier, sheet, formula_cells, standard_qty)
             value = hours(row)
             if value is None:
                 raise ValidationError(f"“{sheet}”第 {day} 日第 {row} 行工时为空")
-            values.append(value)
+            values.append(displayed_hours(value, (number_formats or {}).get((row, column + 1), "General")))
         planned = float(sum(Decimal(str(value)) for value in values))
         if planned > 24:
             raise ValidationError(f"“{sheet}”第 {day} 日白夜班总工时不能超过 24 小时")
@@ -86,8 +100,8 @@ def parse_daily_hours(data, day, identifier, sheet, formula_cells, standard_qty)
     return result
 
 
-def parse_production_rows(rows, month, layout, formula_cells=None):
-    """解析单条产线；rows/month/layout 为缓存、月份和映射，formula_cells 为公式位置；返回日报、工时与标准。"""
+def parse_production_rows(rows, month, layout, formula_cells=None, number_formats=None):
+    """解析单条产线；rows/month/layout 为缓存、月份和映射，后两参数为公式及格式；返回日报、工时与标准。"""
     identifier, sheet, unit, actual_rows, defect_rows, standard_rows = layout
     data = list(rows)
     days = monthrange(int(month[:4]), int(month[5:]))[1]
@@ -123,7 +137,7 @@ def parse_production_rows(rows, month, layout, formula_cells=None):
             continue
         if defects is not None and defects > actual:
             raise ValidationError(f"“{sheet}”第 {day} 日报废数量大于实际产量")
-        timing = parse_daily_hours(data, day, identifier, sheet, formula_cells or {}, standards[-1])
+        timing = parse_daily_hours(data, day, identifier, sheet, formula_cells or {}, standards[-1], number_formats)
         items.append({"date": f"{month}-{day:02d}", "line_id": identifier, "unit": unit,
                       "actual_qty": actual, "defect_qty": defects, "sheet": sheet, **timing})
     if len(set(standards)) != 1:
@@ -141,8 +155,10 @@ def parse_production_file(upload, month):
     items, standards = [], []
     for layout in LAYOUTS:
         formulas = {}
+        formats = {}
         result = parse_excel_sheet(upload, cell_text(layout[1]),
-            lambda rows: parse_production_rows(rows, month, layout, formulas), formula_cells=formulas)
+            lambda rows: parse_production_rows(rows, month, layout, formulas, formats),
+            formula_cells=formulas, number_formats=formats)
         items.extend(result.pop("items"))
         standards.append(result)
     if not items:

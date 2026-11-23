@@ -46,6 +46,28 @@ def preview(client, source=None, month='2026-11'):
     return client.post('/api/production/' + month + '/preview', data={'file': (source or production_workbook(), '生产日报.xlsx')})
 
 
+@pytest.mark.parametrize('value,number_format,expected', [
+    (10.166666666666666, '0.0', 20.4),
+    (10.25, '0.0', 20.6),
+    (10.166666666666666, '0.00', 20.34),
+    (10.166666666666666, 'General', 20 + 1 / 3),
+])
+def test_import_hours_follow_display_precision(client, value, number_format, expected):
+    """验证显示精度；参数为客户端、源工时、格式及预期合计；断言逐班舍入且预览、保存口径一致。"""
+    def change(book):
+        """设置班次工时及格式；book 为内存工作簿；无返回值，覆盖四条产线的白夜班。"""
+        for identifier, name, *_ in LAYOUTS:
+            for row in HOUR_ROWS[identifier]:
+                book[name].cell(row, 3, value).number_format = number_format
+    response = preview(client, production_workbook(change))
+    assert response.status_code == 200, response.get_json()
+    data = response.get_json()
+    assert all(item['planned_hours'] == pytest.approx(expected) for item in data['items'])
+    assert client.post('/api/production/2026-11/import', json=data).status_code == 200
+    saved = client.get('/api/editor?date=2026-11-01').get_json()['production']['lines']
+    assert all(line['planned_hours'] == pytest.approx(expected) for line in saved)
+
+
 def test_real_production_file_preview_and_save(client, app):
     """核对用户原表；client、app 为隔离环境；断言明细、标准、米数精度、空白及同步保存正确。"""
     source = next((Path(__file__).resolve().parents[1] / 'docs').glob('5.*.xlsx'), None)
@@ -70,7 +92,7 @@ def test_real_production_file_preview_and_save(client, app):
     assert result['overview']['actual_qty'] == 16115
     assert result['overview']['planned_qty'] == 16000
     assert result['overview']['completion_rate'] == 100.72
-    assert result['overview']['average_output'] == 49.53
+    assert result['overview']['average_output'] == 49.37
     assert result['overview']['oee_percent'] is None
     assert any(item['warnings'] for item in data['items'] if item['line_id'] == 3)
     assert all(line['actual_qty'] is None for line in result['lines'])
@@ -78,7 +100,7 @@ def test_real_production_file_preview_and_save(client, app):
     assert first[0]['actual_qty'] == pytest.approx(19217.6438348)
     assert first[0]['defect_qty'] == pytest.approx(15.172375)
     assert first[0]['_audit']['modified_by_name'] == '管理员'
-    assert first[0]['planned_hours'] == pytest.approx(20 + 1 / 3)
+    assert first[0]['planned_hours'] == pytest.approx(20.4)
     assert first[2]['actual_qty'] == 1001 and first[2]['defect_qty'] == 12
 
 
