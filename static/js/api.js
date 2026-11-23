@@ -8,8 +8,9 @@ const BoardAPI = (() => {
     const timer = setTimeout(() => controller.abort(), options.timeout || 10000);
     try {
       const response = await fetch(path, { method: options.method || "GET", cache: "no-store", signal: controller.signal,
-        headers: { "Content-Type": "application/json" },
-        body: options.body === undefined ? undefined : JSON.stringify(options.body) });
+        // 文件上传由浏览器生成 multipart 边界，普通接口继续发送 JSON。
+        headers: options.formData ? undefined : { "Content-Type": "application/json" },
+        body: options.formData || (options.body === undefined ? undefined : JSON.stringify(options.body)) });
       let result;
       try { result = await response.json(); }
       catch (_) { throw new Error("服务返回格式不正确，请稍后重试"); }

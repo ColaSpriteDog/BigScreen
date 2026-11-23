@@ -36,6 +36,11 @@ body { margin: 0; background: var(--editor-bg); color: var(--editor-ink); font: 
 .audit-details { line-height: 1.8; overflow-wrap: anywhere; max-width: min(360px, 80vw); }
 .section-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; min-width: 0; }
 .order-attribution { margin-top: 8px; }
+/* 导入沿用现有工具栏与表格，预览弹窗在小屏中保留内部滚动。 */
+.inventory-import-toolbar { display: flex; justify-content: flex-end; padding-top: 16px; }
+.inventory-import-dialog { max-height: calc(100dvh - 32px); overflow-y: auto; margin-top: 16px; }
+.inventory-import-dialog h3 { margin: 20px 0 10px; font-size: 15px; font-weight: 500; }
+.inventory-import-dialog .import-source { color: var(--editor-muted); overflow-wrap: anywhere; }
 .process-attribution { flex: 1 0 100%; text-align: right; }
 .process-setting { flex-wrap: wrap; }
 #panel-employees .el-switch { --el-switch-off-color: var(--editor-muted); }

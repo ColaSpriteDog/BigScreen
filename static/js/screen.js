@@ -26,7 +26,7 @@
 
   /** 为数值附加单位；value 为数值、unit 为单位；返回缺失符号或格式化文本。 */
   function quantity(value, unit = "件") {
-    return value === null || value === undefined ? "—" : model.formatNumber(value) + unit;
+    return value === null || value === undefined ? "—" : model.formatNumber(value) + model.unitLabel(unit);
   }
 
   /** 创建产线字段；label 为标题、value 为展示值、warning 为告警样式；返回字段行。 */
@@ -54,7 +54,7 @@
         metric("本月产量", quantity(line.monthly_qty)), metric("不良品数", defectText, line.defect_qty > 0));
       const status = metric("运行状态", `${line.status_label} ${model.formatPercent(line.runtime_rate)}`);
       status.lastElementChild.style.color = line.status === "running" ? "var(--green)" : "var(--orange)";
-      status.title = `计划生产 ${model.formatNumber(line.planned_hours)} 小时；当天累计停机 ${model.formatNumber(line.downtime_minutes)} 分钟；运行率按计划生产时长扣除当天已发生停机计算`;
+      status.title = `计划生产 ${model.formatNumber(line.planned_hours)}（小时）；当天累计停机 ${model.formatNumber(line.downtime_minutes)}（分钟）；运行率按计划生产时长扣除当天已发生停机计算`;
       list.append(status);
       const progress = node("div", "progress-bar");
       const fill = node("div", "progress-inner" + (line.status === "running" ? "" : " warn"));
@@ -66,10 +66,10 @@
     document.getElementById("lineCards").replaceChildren(...cards);
   }
 
-  /** 创建库存数值单元格；value 为数量；返回仅含格式化数字的单元格，单位统一显示在表头。 */
-  function numericCell(value) {
+  /** 创建库存数值单元格；value 为数量、digits 为最多小数位；返回数字单元格，单位显示在表头。 */
+  function numericCell(value, digits = 2) {
     const cell = node("td", "material-number");
-    cell.append(node("span", "val", model.formatNumber(value)));
+    cell.append(node("span", "val", model.formatNumber(value, digits)));
     return cell;
   }
 
@@ -81,7 +81,7 @@
 
   /** 更新库存表头；id 为行标识，before/after 为固定字段，units 为单位列；返回完整列配置。 */
   function inventoryHeader(id, before, units, after = []) {
-    const columns = [...before, ...units.map(unit => ({ label: unit ? "库存 / " + unit : "库存", className: "material-number stock-heading", width: 15 })), ...after];
+    const columns = [...before, ...units.map(unit => ({ label: "剩余数量" + model.unitLabel(unit), className: "material-number stock-heading", width: 20 })), ...after];
     document.getElementById(id).replaceChildren(...columns.map(column => {
       const heading = node("th", column.className || "", column.label);
       heading.scope = "col";
@@ -104,7 +104,7 @@
     const element = document.getElementById(id);
     element.classList.toggle("multiple", totals.length > 1);
     if (totals.length === 1) {
-      element.replaceChildren(document.createTextNode(model.formatNumber(totals[0].quantity)), node("span", "unit", totals[0].unit));
+      element.replaceChildren(document.createTextNode(model.formatNumber(totals[0].quantity)), node("span", "unit", model.unitLabel(totals[0].unit)));
     } else element.textContent = model.inventorySummary(totals);
   }
 
@@ -119,11 +119,10 @@
     const rawUnits = inventoryUnits(inventory.raw);
     const semiUnits = inventoryUnits(inventory.semi);
     const rawColumns = inventoryHeader("rawTableHeader", [
-      { label: "物料", width: 12 }, { label: "规格", width: 25 }, { label: "部位", width: 10 },
+      { label: "产品名称", width: 18 }, { label: "规格型号", width: 32 },
     ], rawUnits, [
-      { label: "重量", className: "material-number", width: 16 },
-      { label: "状态", className: "material-status", width: 12 },
-      { label: "可切", className: "material-number", width: 10 },
+      { label: "重量（吨）", className: "material-number", width: 20 },
+      { label: "可切（件）", className: "material-number", width: 20 },
     ]);
     const totalWidth = rawColumns.reduce((sum, column) => sum + column.width, 0);
     document.getElementById("rawTableColumns").replaceChildren(...rawColumns.map(column => {
@@ -131,21 +130,21 @@
       element.style.width = column.width / totalWidth * 100 + "%";
       return element;
     }));
-    inventoryHeader("semiTableHeader", [{ label: "类别" }, { label: "物料" }, { label: "仓库" },
-      { label: "规格", className: "semi-spec" }], semiUnits);
+    inventoryHeader("semiTableHeader", [{ label: "类别" }, { label: "产品名称" },
+      { label: "规格型号", className: "semi-spec" }], semiUnits);
     const materialRows = inventory.raw.map(item => {
       const row = node("tr", item.status === "zero" ? "is-shortage" : "");
-      row.append(node("td", "material-name", item.material),
-        node("td", "material-spec", item.specification), node("td", "material-part", item.position),
-        ...rawUnits.map(unit => numericCell(item.unit === unit ? item.quantity : null)), numericCell(item.weight_kg));
-      const status = node("td", "material-status");
-      status.append(node("span", item.status === "zero" ? "stock-warning" : "stock-available", item.status === "zero" ? "零库存" : "有库存"));
-      row.append(status, numericCell(item.cuttable_qty));
+      // 钢卷归入原材料，行内按汇总表展示产品、规格、余量、重量和预计可切数量。
+      row.append(node("td", "material-name material-part", item.position || item.material),
+        node("td", "material-spec", item.specification),
+        ...rawUnits.map(unit => numericCell(item.unit === unit ? item.quantity : null)), numericCell(model.weightTonnes(item.weight_kg), 5));
+      row.append(numericCell(item.cuttable_qty));
       return row;
     });
-    document.getElementById("rawTableBody").replaceChildren(...(materialRows.length ? materialRows : [emptyRow(6 + rawUnits.length, "暂无原材料记录")]));
+    document.getElementById("rawTableBody").replaceChildren(...(materialRows.length ? materialRows : [emptyRow(4 + rawUnits.length, "暂无原材料记录")]));
     const semiRows = inventory.semi.map((item, index, items) => {
       const row = node("tr");
+      // 连续的左右件合并类别单元格，保留分类且不重复显示仓库。
       if (index === 0 || items[index - 1].category !== item.category) {
         let count = 1;
         while (index + count < items.length && items[index + count].category === item.category) count++;
@@ -153,11 +152,11 @@
         category.rowSpan = count;
         row.append(category);
       }
-      row.append(node("td", "semi-name", item.material), node("td", "warehouse-field", item.warehouse),
+      row.append(node("td", "semi-name", item.material),
         node("td", "semi-spec", item.specification), ...semiUnits.map(unit => numericCell(item.unit === unit ? item.quantity : null)));
       return row;
     });
-    document.getElementById("semiTableBody").replaceChildren(...(semiRows.length ? semiRows : [emptyRow(4 + semiUnits.length, "暂无半成品记录")]));
+    document.getElementById("semiTableBody").replaceChildren(...(semiRows.length ? semiRows : [emptyRow(3 + semiUnits.length, "暂无半成品记录")]));
   }
 
   /** 展示图片工序节点；processes 为后端关联状态；无返回值，仅在状态变化时替换节点。 */
@@ -254,7 +253,7 @@
   function setKpi(id, value, unit) {
     const element = document.getElementById(id);
     element.replaceChildren(document.createTextNode(model.formatNumber(value)));
-    if (value !== null && value !== undefined) element.append(node("span", "", unit));
+    if (value !== null && value !== undefined) element.append(node("span", "", model.unitLabel(unit)));
   }
 
   /** 读取已保存数据；无参数；返回 Promise，失败时保留最后成功画面并标记连接状态。 */

@@ -2,6 +2,19 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const api = require('../../static/js/api.js');
 
+test('Excel 上传保留文件表单并让浏览器生成边界', async () => {
+  const formData = new FormData();
+  formData.append('file', new Blob(['Excel 测试']), '库存.xls');
+  global.fetch = async (path, options) => {
+    assert.equal(path, '/api/inventory/preview');
+    assert.equal(options.method, 'POST');
+    assert.equal(options.headers, undefined);
+    assert.equal(options.body, formData);
+    return { ok: true, json: async () => ({ raw: [], semi: [] }) };
+  };
+  assert.deepEqual(await api.request('/api/inventory/preview', { method: 'POST', formData }), { raw: [], semi: [] });
+});
+
 test('保存请求完整携带中文字段与零值', async () => {
   global.fetch = async (path, options) => {
     assert.equal(path, '/api/inventory');

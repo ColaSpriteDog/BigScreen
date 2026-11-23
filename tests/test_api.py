@@ -50,7 +50,7 @@ def test_inventory_fields_and_derived_totals_are_independent(client):
     assert response.status_code == 200
     inventory = client.get('/api/dashboard').get_json()['inventory']
     assert inventory['raw_totals'] == [{'quantity': 0.5, 'unit': '卷'}, {'quantity': 10, 'unit': '张'}]
-    assert inventory['semi_totals'] == [{'quantity': 2977, 'unit': '个'}]
+    assert inventory['semi_totals'] == [{'quantity': 2977, 'unit': '件'}]
     assert inventory['zero_count'] == 1
     assert inventory['raw'][0]['cuttable_qty'] == 123
     assert inventory['raw'][0]['weight_kg'] is None

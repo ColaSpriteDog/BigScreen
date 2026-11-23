@@ -2,6 +2,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const model = require('../../static/js/model.js');
 
+test('重量以吨显示并按千克保存，保留精度、零值和空白', () => {
+  assert.equal(model.weightTonnes(185370), 185.37);
+  assert.equal(model.weightKilograms(185.37), 185370);
+  for (const kilograms of [0, 0.01, 12.34, 185370.12]) {
+    assert.equal(model.weightKilograms(model.weightTonnes(kilograms)), kilograms);
+  }
+  assert.equal(model.formatNumber(model.weightTonnes(0.01), 5), '0.00001');
+  assert.equal(model.weightTonnes(null), null);
+  assert.equal(model.weightKilograms(''), null);
+});
+
 test('零值可以显示，缺失值显示破折号，小数卷数保留', () => {
   assert.equal(model.formatNumber(0), '0');
   assert.equal(model.formatNumber(null), '—');
@@ -9,7 +20,7 @@ test('零值可以显示，缺失值显示破折号，小数卷数保留', () =>
 });
 
 test('不同库存单位分别展示', () => {
-  assert.equal(model.inventorySummary([{ quantity: 0.5, unit: '卷' }, { quantity: 10, unit: '张' }]), '0.5 卷 / 10 张');
+  assert.equal(model.inventorySummary([{ quantity: 0.5, unit: '卷' }, { quantity: 10, unit: '张' }]), '0.5（卷） / 10（张）');
 });
 
 test('趋势图保留未录入空值并正确呈现零产量', () => {

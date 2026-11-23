@@ -30,7 +30,7 @@ def test_demo_data_populates_screen_and_keeps_previous_database_backup(client, a
     assert len(data['inventory']['raw']) == 8
     assert len(data['inventory']['semi']) == 10
     assert data['inventory']['raw_totals'] == [{'quantity': 41.5, 'unit': '卷'}]
-    assert data['inventory']['semi_totals'] == [{'quantity': 29954, 'unit': '个'}]
+    assert data['inventory']['semi_totals'] == [{'quantity': 29954, 'unit': '件'}]
     assert data['inventory']['zero_count'] == 2
     assert data['sales']['shipped_qty'] == 37400
     assert len(data['sales']['items']) == 8

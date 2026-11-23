@@ -1,17 +1,29 @@
 """Flask 应用工厂，提供同源页面及结构化数据接口。"""
 
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from pathlib import Path
 import os
 import sqlite3
 from zoneinfo import ZoneInfo
 
-from flask import Flask, g, jsonify, redirect, request, send_from_directory, session
+from flask import Flask, Request, g, jsonify, redirect, request, send_from_directory, session
 from werkzeug.exceptions import HTTPException
 
 from .db import close_db, get_db, initialize_database
 from .domain import ValidationError
+from .inventory_import import MAX_FILE_BYTES, parse_inventory_file
 from . import audit, auth, service
+
+
+class InventoryRequest(Request):
+    """让库存上传仅驻留内存，避免默认 multipart 解析器为大文件创建临时磁盘文件。"""
+
+    def _get_file_stream(self, total_content_length, content_type, filename=None, content_length=None):
+        """创建上传流；参数由 Werkzeug 提供文件元数据；库存预览返回内存流，其他请求沿用默认值。"""
+        if self.path == "/api/inventory/preview":
+            return BytesIO()
+        return super()._get_file_stream(total_content_length, content_type, filename, content_length)
 
 
 def utc_now():
@@ -23,6 +35,7 @@ def create_app(configuration=None):
     """创建应用；configuration 可覆盖数据库、时区和测试时钟；返回已初始化的 Flask 实例。"""
     root = Path(__file__).resolve().parents[1]
     app = Flask(__name__, static_folder=str(root / "static"), static_url_path="/static")
+    app.request_class = InventoryRequest
     app.config.update(DATABASE=os.environ.get("BIGSCREEN_DATABASE", str(root / "data" / "dashboard.sqlite3")),
                       BUSINESS_TIMEZONE=os.environ.get("BIGSCREEN_TIMEZONE", "America/Detroit"),
                       NOW_PROVIDER=utc_now, MAX_CONTENT_LENGTH=2 * 1024 * 1024,
@@ -194,6 +207,21 @@ def create_app(configuration=None):
     def inventory_write():
         """保存原材料和半成品；JSON 为两类完整列表；返回原子保存后的版本。"""
         return mutate(service.save_inventory)
+
+    @app.post("/api/inventory/preview")
+    def inventory_preview():
+        """预览 Excel 库存；multipart 的 file 为日报；返回解析值，不保存文件、不写库或递增版本。"""
+        # 只为 Excel 上传放宽体积，其他 JSON 接口继续使用原来的 2 MiB 限额。
+        request.max_content_length = MAX_FILE_BYTES + 1024 * 1024
+        if request.content_length and request.content_length > request.max_content_length:
+            raise ValidationError("Excel 文件不能超过 160 MiB")
+        upload = request.files.get("file")
+        if upload is None or not upload.filename:
+            raise ValidationError("请选择需要解析的 Excel 文件")
+        try:
+            return jsonify(parse_inventory_file(upload))
+        finally:
+            upload.close()
 
     @app.put("/api/sales/<month>")
     def sales_write(month):
