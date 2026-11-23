@@ -79,8 +79,8 @@
         .warehouse-field, .material-part { white-space: nowrap; }
         .stock-available { color: var(--text-sub); font-size: 11px; white-space: nowrap; }
         .material-name, .semi-name { color: var(--text-strong); white-space: nowrap; }
-        .material-spec, .semi-spec { font-family: var(--font-number); }
-        .inv-table .stock-heading { white-space: normal; overflow-wrap: anywhere; }
+        /* 数字字体仅用于规格数据，表头沿用统一中文字体并保持单行。 */
+        .inv-table td.material-spec, .inv-table td.semi-spec { font-family: var(--font-number); }
         .is-shortage { background: rgba(255, 98, 115, .11); }
         .is-shortage td:first-child { box-shadow: inset 2px 0 var(--red); }
         .stock-warning { display: inline-block; padding: 0 4px; background: #a52e43; color: #fff; border-radius: 3px; font-size: 10px; white-space: nowrap; }

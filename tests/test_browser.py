@@ -552,6 +552,7 @@ def test_editor_counts_highlights_and_discards_only_actual_changes(ui_context, l
     page.get_by_role('button', name='放弃修改', exact=True).click()
     dialog = page.get_by_role('dialog', name='未保存的修改')
     dialog.get_by_role('button', name='继续编辑', exact=True).click()
+    expect(dialog).not_to_be_visible()
     expect(page.get_by_test_id('actual-1').locator('input')).to_have_value('456')
     expect(page.get_by_test_id('save-status')).to_have_text('1 处修改未保存')
     page.get_by_role('button', name='放弃修改', exact=True).click()

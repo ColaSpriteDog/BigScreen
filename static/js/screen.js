@@ -86,7 +86,7 @@
 
   /** 更新库存表头；id 为行标识，before/after 为固定字段，units 为单位列；返回完整列配置。 */
   function inventoryHeader(id, before, units, after = []) {
-    const columns = [...before, ...units.map(unit => ({ label: "剩余数量" + model.unitLabel(unit), className: "material-number stock-heading", width: 20 })), ...after];
+    const columns = [...before, ...units.map(unit => ({ label: "剩余数量" + model.unitLabel(unit), className: "material-number stock-heading", width: 26 })), ...after];
     document.getElementById(id).replaceChildren(...columns.map(column => {
       const heading = node("th", column.className || "", column.label);
       heading.scope = "col";
@@ -124,7 +124,7 @@
     const rawUnits = inventoryUnits(inventory.raw);
     const semiUnits = inventoryUnits(inventory.semi);
     const rawColumns = inventoryHeader("rawTableHeader", [
-      { label: "产品名称", width: 18 }, { label: "规格型号", width: 32 },
+      { label: "产品名称", width: 18 }, { label: "规格型号", width: 24 },
     ], rawUnits, [
       { label: "重量（吨）", className: "material-number", width: 20 },
       { label: "可切（件）", className: "material-number", width: 20 },
@@ -295,7 +295,7 @@
     element.textContent = new Intl.DateTimeFormat("zh-CN", { timeZone: lastData?.timezone || "UTC", year: "numeric", month: "2-digit", day: "2-digit", weekday: "long", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(now);
   }
 
-  /** 启动溢出库存的每秒十像素滚动；无参数；无返回值，无需按钮，手动操作后暂缓恢复。 */
+  /** 启动库存明细每秒十像素滚动；无参数；无返回值，无需按钮，手动操作后暂缓恢复。 */
   function startInventoryScroll() {
     const states = [...document.querySelectorAll(".material-table-wrap")].map(element => {
       const state = { element, position: 0, lastTop: 0, focused: false, resumeAt: performance.now() + 2000, atBottom: false };
