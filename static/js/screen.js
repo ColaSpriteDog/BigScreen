@@ -49,9 +49,13 @@
       indicators.append(node("span", "status-dot"), node("span", "line-index", line.code));
       header.append(title, indicators);
       const list = node("div", "data-list");
-      const defectText = quantity(line.defect_qty) + (line.defect_rate === null ? "" : ` ${model.formatPercent(line.defect_rate)}`);
-      list.append(metric("标准产量", quantity(line.standard_qty)), metric("今日产量", quantity(line.actual_qty)),
-        metric("本月产量", quantity(line.monthly_qty)), metric("不良品数", defectText, line.defect_qty > 0));
+      // 单位统一放在字段名后，数值仅保留数量与原有不良率，便于扫读和对齐。
+      const unit = model.unitLabel(line.unit || "件");
+      // 标准值为日产量，单位补充时间口径，避免与月累计数量混淆。
+      const dailyUnit = model.unitLabel((line.unit || "件") + "/天");
+      const defectText = model.formatNumber(line.defect_qty) + (line.defect_rate === null ? "" : ` ${model.formatPercent(line.defect_rate)}`);
+      list.append(metric("标准产量" + dailyUnit, model.formatNumber(line.standard_qty)), metric("今日产量" + unit, model.formatNumber(line.actual_qty)),
+        metric("本月产量" + unit, model.formatNumber(line.monthly_qty)), metric((line.unit === "米" ? "报废长度" : "不良品数") + unit, defectText, line.defect_qty > 0));
       const status = metric("运行状态", `${line.status_label} ${model.formatPercent(line.runtime_rate)}`);
       status.lastElementChild.style.color = line.status === "running" ? "var(--green)" : "var(--orange)";
       status.title = `计划生产 ${model.formatNumber(line.planned_hours)}（小时）；当天累计停机 ${model.formatNumber(line.downtime_minutes)}（分钟）；运行率按计划生产时长扣除当天已发生停机计算`;
