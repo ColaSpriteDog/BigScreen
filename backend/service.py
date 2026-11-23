@@ -217,13 +217,20 @@ def dashboard_snapshot(db, now):
     dates = [(first + timedelta(days=index)).isoformat() for index in range(today.day)]
     outputs = {(item["work_date"], item["line_id"]): item["actual_qty"] for item in rows(db,
         "SELECT * FROM production_daily WHERE work_date>=? AND work_date<=?", (dates[0], day))}
-    series = [{"line_id": line["id"], "name": line["name"],
-               "data": [outputs.get((date, line["id"])) for date in dates]} for line in lines if line["show_in_trend"]]
-    totals = []
-    for index in range(len(dates)):
-        values = [item["data"][index] for item in series]
-        totals.append(sum(values) if values and all(value is not None for value in values) else None)
-    known = [value for value in totals if value is not None]
+    series = [{"line_id": line["id"], "name": line["name"], "unit": line["unit"],
+               "data": [outputs.get((date, line["id"])) or 0 for date in dates],
+               # 保留空白与明确录入 0 的区别，供标准产量线判断未启用产线。
+               "has_data": any(outputs.get((date, line["id"])) is not None for date in dates)}
+              for line in lines if line["show_in_trend"]]
+    # 趋势展示将未录入产量按零累计，原始日报仍保留空值；录入天数按任一所选产线有数量计算。
+    groups = []
+    for unit in dict.fromkeys(item["unit"] for item in series):
+        selected = [item for item in series if item["unit"] == unit]
+        values = [float(sum(Decimal(str(item["data"][index])) for item in selected)) for index in range(len(dates))]
+        groups.append({"unit": unit, "totals": values, "period_total": float(sum(Decimal(str(value)) for value in values))})
+    # 不同单位没有可相加的总量；单单位保留标量字段，多单位只提供分组合计。
+    totals = groups[0]["totals"] if len(groups) == 1 else None
+    reported_days = sum(any(outputs.get((date, item["line_id"])) is not None for item in series) for date in dates)
     inventory = snapshot["inventory"]
     for item in inventory["raw"]:
         item["status"] = "zero" if item["quantity"] == 0 else "available"
@@ -267,8 +274,8 @@ def dashboard_snapshot(db, now):
     safe_start = snapshot["settings"]["safety_start_date"]
     return {"version": snapshot["version"], "updated_at": snapshot["updated_at"], "server_time": now.isoformat(),
             "business_date": day, "timezone": zone, "lines": lines, "inventory": inventory,
-            "trend": {"dates": dates, "series": series, "totals": totals,
-                      "period_total": sum(known) if known else None, "reported_days": len(known)},
+            "trend": {"dates": dates, "series": series, "totals": totals, "groups": groups,
+                      "period_total": groups[0]["period_total"] if len(groups) == 1 else None, "reported_days": reported_days},
             "sales": sales, "overview": overview, "processes": processes,
             "safety_days": (parse_date(day) - parse_date(safe_start)).days if safe_start else None}
 

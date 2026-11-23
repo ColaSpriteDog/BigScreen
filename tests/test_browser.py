@@ -74,6 +74,8 @@ def test_production_and_sales_forms_update_actual_charts(ui_context, live_server
     expect(screen.locator('#actualQty')).to_have_text('700（件）')
     expect(screen.locator('#completionRate')).to_have_text('70%')
     expect(screen.locator('.chart-heading')).to_have_text('当月产线产量趋势图')
+    expect(screen.locator('#trendTotal')).to_have_text('本月累计：700（件）')
+    screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.find(item=>item.name==='所选产线合计').data.at(-1) === 700")
     assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().xAxis[0].data") == [f'2026-11-{day:02d}' for day in range(1, 22)]
     Path('output/playwright').mkdir(parents=True, exist_ok=True)
     editor.screenshot(path='output/playwright/editor-production.png', full_page=True)
@@ -342,11 +344,16 @@ def test_editable_names_and_trend_selection_update_chart_at_1440(ui_context, liv
         editor.get_by_role('textbox', name=f'产线名称 {index:02d}', exact=True).fill(prefix + '生产线' * 6)
         set_trend_visibility(editor, index, True)
     editor.get_by_test_id('save-button').click()
-    expect(screen.locator('#trendLegend > span')).to_have_count(5)
-    expect(screen.locator('#trendTotal')).to_have_text('本月累计：1,000（件）')
+    expect(screen.locator('#trendLegend > span')).to_have_count(6)
+    expect(screen.locator('#trendTotal')).to_have_text('本月累计：100（米） / 900（件）')
     expect(screen.locator('.line-card[data-line-id="1"] .line-header')).to_contain_text('一号生产线')
-    screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 5")
-    colors = screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.slice(1).map(series=>series.itemStyle.color)")
+    screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 6")
+    chart_series = screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series")
+    assert [series['type'] for series in chart_series] == ['bar'] * 4 + ['line'] * 2
+    assert chart_series[0]['stack'] != chart_series[1]['stack']
+    assert len({series['stack'] for series in chart_series[1:4]}) == 1
+    assert [series['data'][-1] for series in chart_series] == [100, 200, 300, 400, 100, 900]
+    colors = [series['itemStyle']['color'] for series in chart_series[:4]]
     assert len(set(colors)) == 4
     assert screen.evaluate('document.documentElement.scrollWidth') == 1440
     assert screen.evaluate('document.documentElement.scrollHeight') == 720
@@ -361,7 +368,7 @@ def test_editable_names_and_trend_selection_update_chart_at_1440(ui_context, liv
     expect(screen.locator('#trendLegend > span')).to_have_count(2)
     expect(screen.locator('#trendTotal')).to_have_text('本月累计：200（件）')
     screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 2")
-    assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series[1].itemStyle.color") == colors[1]
+    assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series[0].itemStyle.color") == colors[1]
     editor.reload()
     expect(editor.get_by_test_id('save-button')).to_be_enabled()
     expect(editor.get_by_role('spinbutton', name='今日产量 二号生产线生产线生产线生产线生产线生产线')).to_have_value('200')

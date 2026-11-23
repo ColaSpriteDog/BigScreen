@@ -38,10 +38,9 @@ const BoardModel = (() => {
     return Math.max(1, range.max);
   }
 
-  /** 生成趋势图提示；params 为轴数据，standardQty 为所选产线标准日产量合计；返回画布提示文本。 */
-  function trendTooltip(params, standardQty = null) {
-    const standard = standardQty === null ? "" : `\n标准产量：${formatNumber(standardQty)}${unitLabel("件")}`;
-    return `${params[0]?.axisValue || ""}\n${params.map(item => `${item.seriesName}：${formatNumber(item.value)}${unitLabel("件")}`).join("\n")}${standard}`;
+  /** 读取趋势单位分组；trend 为接口数据；返回各单位独立合计，旧配置输入默认按件处理。 */
+  function trendGroups(trend) {
+    return trend.groups || [{ unit: trend.series[0]?.unit || "件", totals: trend.totals, period_total: trend.period_total }];
   }
 
   /** 根据固定产线ID取颜色；lineId 为产线标识；返回不随名称或选择顺序变化的颜色。 */
@@ -51,34 +50,68 @@ const BoardModel = (() => {
 
   /** 创建趋势图配置；trend 为趋势数据，compact 为紧凑模式，lines 为含标准日产量的产线配置；返回 ECharts 配置。 */
   function buildTrendOption(trend, compact = false, lines = []) {
-    const standards = trend.series.map(item => lines.find(line => line.id === item.line_id)?.standard_qty);
+    const groups = trendGroups(trend);
+    const multiple = groups.length > 1;
     // 仅在所选产线标准值全部已配置时汇总，避免把缺失值当作零。
-    const standardQty = standards.length && standards.every(value => Number.isFinite(value) && value >= 0)
-      ? standards.reduce((sum, value) => sum + value, 0) : null;
-    const standardLine = standardQty === null ? undefined : {
-      silent: true, symbol: "none",
-      lineStyle: { type: "dashed", width: 2, color: "#ffcf70" },
-      label: { show: true, position: "insideEndTop", color: "#ffcf70", fontSize: compact ? 10 : 12,
-        formatter: `标准产量 ${formatNumber(standardQty)}${unitLabel("件")}`, backgroundColor: "#0d1e29", padding: [3, 5] },
-      data: [{ name: "标准产量", yAxis: standardQty }],
-    };
+    const standards = groups.map(group => {
+      // 本月日报全空的产线暂不计入标准，明确录入 0 的产线仍参与统计。
+      const values = trend.series.filter(item => (item.unit || "件") === group.unit && item.has_data !== false)
+        .map(item => lines.find(line => line.id === item.line_id)?.standard_qty);
+      return values.length && values.every(value => Number.isFinite(value) && value >= 0)
+        ? values.reduce((sum, value) => sum + value, 0) : null;
+    });
+    const series = [
+      // 不同计量单位使用不同堆叠组和纵轴，避免米数与件数相加。
+      ...trend.series.map(item => ({
+        id: `bar-${item.line_id}`, name: item.name, type: "bar", stack: `production-${item.unit || "件"}`,
+        yAxisIndex: groups.findIndex(group => group.unit === (item.unit || "件")), barWidth: multiple ? "28%" : "48%",
+        data: item.data,
+        // 数量居中标在对应色块内；零产量没有柱体面积，省略文字以免在基线重叠。
+        label: { show: true, position: "inside", color: "#f2f7fb", fontSize: compact ? 9 : 11, fontWeight: "bold",
+          textBorderColor: "#07141c", textBorderWidth: 2,
+          formatter: params => params.value > 0 ? formatNumber(params.value) : "" },
+        itemStyle: { color: trendColor(item.line_id) }, z: 2,
+      })),
+      ...groups.map((group, index) => ({
+        id: multiple ? `selected-total-${group.unit}` : "selected-total",
+        name: "所选产线合计" + (multiple ? unitLabel(group.unit) : ""), type: "line", data: group.totals,
+        yAxisIndex: index, connectNulls: false, symbol: index ? "diamond" : "circle", symbolSize: 4,
+        lineStyle: { width: 2, color: "#f2f7fb", type: index ? "dashed" : "solid" }, itemStyle: { color: "#f2f7fb" }, z: 3,
+        markLine: standards[index] === null ? undefined : {
+          silent: true, symbol: "none", lineStyle: { type: "dashed", width: 2, color: "#ffcf70" },
+          label: { show: true, position: index ? "insideEndBottom" : "insideEndTop", color: "#ffcf70", fontSize: compact ? 10 : 12,
+            formatter: `标准产量 ${formatNumber(standards[index])}${unitLabel(group.unit)}`, backgroundColor: "#0d1e29", padding: [3, 5] },
+          data: [{ name: "标准产量", yAxis: standards[index] }],
+        },
+      })),
+    ];
     return {
       animation: false,
       textStyle: { fontFamily: "Bahnschrift, Microsoft YaHei, sans-serif" },
-      tooltip: { trigger: "axis", renderMode: "richText", confine: true, formatter: params => trendTooltip(params, standardQty),
+      tooltip: { trigger: "axis", renderMode: "richText", confine: true, formatter: params => {
+        const values = params.map(item => {
+          const config = series.find(entry => entry.id === item.seriesId) || series.find(entry => entry.name === item.seriesName);
+          const unit = groups[config?.yAxisIndex || 0].unit;
+          return `${item.seriesName}：${formatNumber(item.value)}${unitLabel(unit)}`;
+        });
+        groups.forEach((group, index) => {
+          if (standards[index] !== null) values.push(`标准产量：${formatNumber(standards[index])}${unitLabel(group.unit)}`);
+        });
+        return `${params[0]?.axisValue || ""}\n${values.join("\n")}`;
+      },
         backgroundColor: "#122936", borderColor: "#1b3545", textStyle: { color: "#f2f7fb" } },
-      grid: { top: 26, left: 4, right: 9, bottom: 5, containLabel: true },
+      grid: { top: 26, left: 4, right: multiple ? 4 : 9, bottom: 5, containLabel: true },
       xAxis: { type: "category", data: trend.dates, axisTick: { show: false },
         axisLine: { lineStyle: { color: "#1b3545" } },
         axisLabel: { color: "#a9c0d1", fontSize: compact ? 10 : 12, formatter: value => value.slice(8) } },
-      yAxis: { type: "value", min: 0, splitNumber: compact ? 3 : 5, name: "产量（件）",
-        nameTextStyle: { color: "#a9c0d1", fontSize: 11, align: "left" },
+      yAxis: groups.map((group, index) => ({ type: "value", min: 0, position: index ? "right" : "left",
+        // 标准值也参与纵轴范围，避免低产或空数据时标准虚线落到可视区域之外。
+        max: range => Number((Math.max(1, range.max, standards[index] || 0) * 1.1).toPrecision(12)),
+        splitNumber: compact ? 3 : 5, name: "产量" + unitLabel(group.unit),
+        nameTextStyle: { color: "#a9c0d1", fontSize: 11, align: index ? "right" : "left" },
         axisLabel: { color: "#a9c0d1", fontSize: compact ? 10 : 12 },
-        splitLine: { lineStyle: { color: "#244151", type: "dashed" } } },
-      series: [{ id: "selected-total", name: "所选产线合计", type: "bar", data: trend.totals, barWidth: "48%", itemStyle: { color: "#27536c" }, markLine: standardLine },
-        ...trend.series.map(item => ({ id: `line-${item.line_id}`, name: item.name, type: "line", data: item.data,
-          connectNulls: false, symbol: "circle", symbolSize: 4, lineStyle: { width: 2, color: trendColor(item.line_id) },
-          itemStyle: { color: trendColor(item.line_id) }, z: 3 }))],
+        splitLine: { show: index === 0, lineStyle: { color: "#244151", type: "dashed" } } })),
+      series,
     };
   }
 
@@ -114,7 +147,7 @@ const BoardModel = (() => {
     };
   }
 
-  return Object.freeze({ formatNumber, unitLabel, weightTonnes, weightKilograms, formatPercent, inventorySummary, trendColor, buildTrendOption, buildShipmentOption });
+  return Object.freeze({ formatNumber, unitLabel, weightTonnes, weightKilograms, formatPercent, inventorySummary, trendColor, trendGroups, buildTrendOption, buildShipmentOption });
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = BoardModel;

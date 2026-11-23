@@ -217,13 +217,15 @@
     shipmentChart.resize();
     trendChart ||= echarts.init(trendElement);
     const trendOption = model.buildTrendOption(data.trend, trendElement.clientHeight < 280, data.lines);
-    if (!data.trend.series.some(series => series.data.some(value => value !== null))) {
+    if (data.trend.reported_days === 0) {
       trendOption.graphic = { type: "text", left: "center", top: "middle", style: { text: "暂无产量记录", fill: "#a9c0d1", fontSize: 12 } };
     }
     trendChart.setOption(trendOption, { notMerge: true });
     trendChart.resize();
-    const labels = [{ name: "所选产线合计", className: "total", color: "#27536c" },
-      ...data.trend.series.map(series => ({ name: series.name, lineId: series.line_id, color: model.trendColor(series.line_id), className: "" }))];
+    const groups = model.trendGroups(data.trend);
+    const labels = [...groups.map((group, index) => ({ name: "所选产线合计" + (groups.length > 1 ? model.unitLabel(group.unit) : ""),
+      className: "total" + (index ? " dashed" : ""), color: "#f2f7fb" })),
+      ...data.trend.series.map(series => ({ name: series.name + (groups.length > 1 ? model.unitLabel(series.unit) : ""), lineId: series.line_id, color: model.trendColor(series.line_id), className: "" }))];
     document.getElementById("trendLegend").replaceChildren(...labels.map(item => {
       const label = node("span");
       label.title = item.name;
@@ -233,8 +235,8 @@
       label.append(mark, node("span", "legend-label", item.name));
       return label;
     }));
-    setText("trendTotal", `本月累计：${quantity(data.trend.period_total)}`);
-    document.getElementById("trendTotal").title = "按所选产线汇总；任一所选产线未录入的日期不计入合计";
+    setText("trendTotal", `本月累计：${groups.map(group => quantity(group.period_total, group.unit)).join(" / ")}`);
+    document.getElementById("trendTotal").title = "按所选产线实际产量汇总；未录入产量按0计算";
   }
 
   /** 更新全局指标与销量；data 为后端完整数据；无返回值。 */

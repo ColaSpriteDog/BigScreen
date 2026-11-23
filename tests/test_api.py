@@ -22,8 +22,10 @@ def test_empty_database_has_configuration_but_no_demo_business_data(client):
     assert data['sales']['shipped_qty'] is None
     assert data['safety_days'] is None
     assert data['trend']['dates'] == [f'2026-11-{day:02d}' for day in range(1, 22)]
-    assert len(data['trend']['totals']) == 21
-    assert all(len(series['data']) == 21 for series in data['trend']['series'])
+    assert data['trend']['totals'] == [0] * 21
+    assert all(series['data'] == [0] * 21 for series in data['trend']['series'])
+    assert data['trend']['period_total'] == 0
+    assert data['trend']['reported_days'] == 0
 
 
 def production_payload(client, day='2026-11-21'):
@@ -52,6 +54,45 @@ def test_daily_output_drives_monthly_and_trend_and_overview(client):
     assert data['overview']['actual_qty'] == 2780
     assert data['overview']['planned_qty'] == 2850
     assert data['overview']['completion_rate'] == 97.54
+
+
+def test_trend_missing_output_counts_as_zero_without_changing_daily_records(client):
+    """验证缺失产量口径；client 为接口客户端；断言部分录入按零求和且原始空值不变。"""
+    for day, quantities in [('2026-11-19', [500, None, 100, None]),
+                            ('2026-11-20', [None, None, None, 80]),
+                            ('2026-11-21', [None, None, 0, None])]:
+        draft = production_payload(client, day)
+        for line, quantity in zip(draft['lines'], quantities):
+            line['actual_qty'] = quantity
+        assert client.put('/api/production/' + day, json=draft).status_code == 200
+    trend = client.get('/api/dashboard').get_json()['trend']
+    assert trend['totals'][-4:] == [0, 100, 80, 0]
+    assert trend['series'][0]['data'][-3:] == [100, 0, 0]
+    assert trend['series'][1]['data'][-3:] == [0, 80, 0]
+    assert trend['period_total'] == 180
+    assert trend['reported_days'] == 3
+    original = production_payload(client, '2026-11-19')
+    assert original['lines'][3]['actual_qty'] is None
+
+
+@pytest.mark.parametrize('b_quantity', [None, 0, 80])
+def test_trend_preserves_empty_line_marker_for_standard_quantity(client, b_quantity):
+    """验证趋势录入标记；client 为客户端、b_quantity 为 B 线产量；断言空白与零可区分且仅统计当月。"""
+    trend = client.get('/api/dashboard').get_json()['trend']
+    assert all(item['has_data'] is False for item in trend['series'])
+    # 窗口外的旧日报不能使当前全空的 B 线参与标准产量统计。
+    historical = production_payload(client, '2026-10-31')
+    historical['lines'][3]['actual_qty'] = 50
+    assert client.put('/api/production/2026-10-31', json=historical).status_code == 200
+    draft = production_payload(client)
+    draft['lines'][2]['actual_qty'] = 100
+    draft['lines'][3]['actual_qty'] = b_quantity
+    assert client.put('/api/production/2026-11-21', json=draft).status_code == 200
+    trend = client.get('/api/dashboard').get_json()['trend']
+    assert trend['series'][0]['has_data'] is True
+    assert trend['series'][1]['has_data'] is (b_quantity is not None)
+    assert trend['series'][1]['data'][-1] == (b_quantity or 0)
+    assert production_payload(client)['lines'][3]['actual_qty'] == b_quantity
 
 
 def test_inventory_fields_and_derived_totals_are_independent(client):
@@ -301,8 +342,12 @@ def test_any_nonempty_trend_selection_updates_names_and_totals(client, selection
     data = client.get('/api/dashboard').get_json()
     assert [item['line_id'] for item in data['trend']['series']] == chosen
     assert [item['name'] for item in data['trend']['series']] == [f'设备{identifier}' for identifier in chosen]
-    assert data['trend']['totals'][-1] == sum(identifier * 100 for identifier in chosen)
-    assert data['trend']['period_total'] == sum(identifier * 100 for identifier in chosen)
+    for group in data['trend']['groups']:
+        matching = [identifier for identifier in chosen if ('米' if identifier == 1 else '件') == group['unit']]
+        assert group['totals'][-1] == sum(identifier * 100 for identifier in matching)
+        assert group['period_total'] == sum(identifier * 100 for identifier in matching)
+    if 1 in chosen and len(chosen) > 1:
+        assert data['trend']['totals'] is None and data['trend']['period_total'] is None
     assert [line['monthly_qty'] for line in data['lines']] == [100, 200, 300, 400]
     restored = client.get('/api/editor').get_json()['production']['lines']
     assert [line['id'] for line in restored if line['show_in_trend']] == chosen

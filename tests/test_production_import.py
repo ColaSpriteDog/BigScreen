@@ -82,6 +82,30 @@ def test_real_production_file_preview_and_save(client, app):
     assert first[2]['actual_qty'] == 1001 and first[2]['defect_qty'] == 12
 
 
+def test_import_is_idempotent_preserves_unrelated_fields_and_uses_units(client):
+    """验证重复与工时更新；client 为客户端；断言覆盖有效工时、派生 OEE、重复不累加且单位不混加。"""
+    draft = production_payload(client, '2026-11-01')
+    draft['lines'][0]['planned_hours'] = 12
+    draft['overview']['oee_percent'] = 95
+    assert client.put('/api/production/2026-11-01', json=draft).status_code == 200
+    data = preview(client).get_json()
+    data['overwrite'] = True
+    assert client.post('/api/production/2026-11/import', json=data).status_code == 200
+    saved = client.get('/api/editor?date=2026-11-01').get_json()['production']
+    assert saved['lines'][0]['actual_qty'] == 100.125
+    assert saved['lines'][0]['planned_hours'] == 20 and saved['overview']['oee_percent'] == 9.9
+    assert saved['overview']['actual_qty'] == 200
+    repeat = preview(client).get_json()
+    assert not any(item['conflict'] for item in repeat['items'])
+    assert client.post('/api/production/2026-11/import', json=repeat).status_code == 200
+    assert client.get('/api/editor?date=2026-11-01').get_json()['production'] == saved
+    settings = settings_payload(client)
+    for line in settings['lines']:
+        line['show_in_trend'] = True
+    assert client.put('/api/settings', json=settings).status_code == 200
+    trend = client.get('/api/dashboard').get_json()['trend']
+    assert trend['period_total'] is None and trend['totals'] is None
+    assert {group['unit']: group['period_total'] for group in trend['groups']} == {'米': 100.125, '件': 300}
 
 
 def test_import_conflict_and_failure_roll_back_standards_and_quantities(client):
