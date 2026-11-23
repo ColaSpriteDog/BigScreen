@@ -32,7 +32,7 @@ def stock_examples():
     for category, quantities in amounts.items():
         for (name, specification), quantity in zip(names, quantities):
             semi.append({'category': category, 'material': name + category, 'warehouse': '半成品仓库',
-                         'specification': specification, 'quantity': quantity, 'unit': '个'})
+                         'specification': specification, 'quantity': quantity, 'unit': '件'})
     return {'raw': raw, 'semi': semi}
 
 

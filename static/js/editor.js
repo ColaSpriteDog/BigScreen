@@ -49,6 +49,7 @@
         dirty: { production: false, inventory: false, sales: false, settings: false }, keyCounter: 0, partSearch: "",
         baselines: {}, employees: { items: [] }, currentEmployee: null,
         production: { lines: [], overview: {}, downtimes: [] }, inventory: { raw: [], semi: [] },
+        inventoryImport: null, importDialogVisible: false,
         sales: { order_qty: null, items: [] }, settingsForm: { timezone: "UTC", safety_start_date: null, lines: [], processes: [] } };
     },
     computed: {
@@ -94,6 +95,12 @@
     methods: {
       /** 格式化数值；value 为字段值；返回展示文本。 */
       fmt(value) { return BoardModel.formatNumber(value); },
+      /** 读取吨数输入；value 为千克重量；返回吨数，保留原字段避免改写既有数据。 */
+      weightTonnes(value) { return BoardModel.weightTonnes(value); },
+      /** 格式化吨数预览；value 为千克重量；返回最多五位小数的吨数文本。 */
+      fmtWeight(value) { return BoardModel.formatNumber(this.weightTonnes(value), 5); },
+      /** 更新重量草稿；row 为原材料行、value 为输入吨数；无返回值，保存时仍提交千克。 */
+      updateWeight(row, value) { row.weight_kg = BoardModel.weightKilograms(value); this.markDirty("inventory"); },
       /** 读取固定产线颜色；id 为产线标识；返回与大屏趋势图一致的颜色值。 */
       lineColor(id) { return BoardModel.trendColor(id); },
       /** 格式化百分比；value 为百分数；返回展示文本。 */
@@ -313,6 +320,64 @@
           if (this.errorMessage) await this.focusError();
         }
       },
+      /** 匹配导入库存；items 为解析记录、kind 为 raw/semi；返回保留已有标识和仓库的完整快照。 */
+      prepareImportedStock(items, kind) {
+        const fields = kind === "raw" ? ["material", "specification", "position", "unit"] : ["category", "material", "specification", "unit"];
+        const identity = item => JSON.stringify(fields.map(field => String(item[field] ?? "").replace(/\s+/g, "")));
+        const existing = new Map();
+        for (const item of this.inventory[kind]) {
+          const key = identity(item);
+          if (!existing.has(key)) existing.set(key, []);
+          existing.get(key).push(item);
+        }
+        return items.map(item => {
+          const candidates = existing.get(identity(item)) || [];
+          if (candidates.length > 1) throw new Error(`第 ${item.source_row} 行物料对应多个仓库或重复草稿，请先明确仓库后再导入`);
+          const { source_row, ...values } = item;
+          const previous = candidates[0];
+          // 同一物料继续使用原 ID，保存时才能保留首次录入人和未变化行的修改记录。
+          return previous ? { ...previous, ...values, specification: previous.specification, warehouse: previous.warehouse } : { ...values, _key: this.newKey() };
+        });
+      },
+      /** 解析所选 Excel；event 为文件选择事件；返回 Promise，成功仅打开预览，失败保留原草稿。 */
+      async previewInventoryFile(event) {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file || this.loading || this.saving || !this.moduleReady) return;
+        this.inventoryImport = null;
+        this.errorMessage = "";
+        if (!/\.(xls|xlsx)$/i.test(file.name) || file.size > 160 * 1024 * 1024) {
+          this.errorMessage = "请选择不超过 160 MiB 的 .xls 或 .xlsx 文件";
+          await this.focusError();
+          return;
+        }
+        this.loading = true;
+        try {
+          const body = new FormData();
+          body.append("file", file);
+          const result = await BoardAPI.request("/api/inventory/preview", { method: "POST", formData: body, timeout: 120000 });
+          const raw = this.prepareImportedStock(result.raw, "raw");
+          const semi = this.prepareImportedStock(result.semi, "semi");
+          this.inventoryImport = { ...result, filename: file.name, prepared: { raw, semi } };
+          this.importDialogVisible = true;
+        } catch (error) {
+          if (error.status === 401) this.handleSessionExpired();
+          this.errorMessage = error.message;
+        } finally {
+          this.loading = false;
+          if (this.errorMessage) await this.focusError();
+        }
+      },
+      /** 应用预览到库存草稿；无参数；无返回值，按整份快照替换两类库存，仍需手动保存。 */
+      applyInventoryImport() {
+        if (!this.inventoryImport) return;
+        this.inventory = clone(this.inventoryImport.prepared);
+        this.markDirty("inventory");
+        this.importDialogVisible = false;
+        ElementPlus.ElMessage.success("已应用到草稿，请核对后保存库存");
+      },
+      /** 释放导入预览；无参数；无返回值，不改变库存草稿。 */
+      clearInventoryImport() { this.inventoryImport = null; },
       /** 新增原材料草稿；无参数；无返回值，数量保持未填写。 */
       addRaw() {
         this.inventory.raw.push({ _key: this.newKey(), material: "", warehouse: this.rawWarehouses[0], specification: "", position: "", quantity: null, unit: "卷", weight_kg: null, cuttable_qty: null });
@@ -353,7 +418,7 @@
       },
       /** 新增半成品草稿；无参数；无返回值。 */
       addSemi() {
-        this.inventory.semi.push({ _key: this.newKey(), category: "左件", material: "", warehouse: this.semiWarehouses[0], specification: "", quantity: null, unit: "个" });
+        this.inventory.semi.push({ _key: this.newKey(), category: "左件", material: "", warehouse: this.semiWarehouses[0], specification: "", quantity: null, unit: "件" });
         this.markDirty("inventory");
       },
       /** 复制库存行；kind 为 raw/semi，index 为行号；无返回值，新行获得独立标识。 */

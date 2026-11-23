@@ -117,6 +117,10 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True):
                   "items": rows(db, "SELECT * FROM shipment_month_item WHERE month=? ORDER BY quantity DESC,part_no", (month,))},
         "processes": rows(db, "SELECT * FROM process_node ORDER BY sort_order"),
     }
+    # 历史“个”与现在的“件”为同一计数口径，读取时统一单位，不在读取请求中修改数据库。
+    for item in result["inventory"]["semi"]:
+        if item["unit"] == "个":
+            item["unit"] = "件"
     if include_audit:
         lookup = audit.attribution_lookup(db)
         audit.attach([config], "screen_settings", lookup)
@@ -308,6 +312,8 @@ def save_inventory(db, payload):
                              ("specification", "规格"), ("unit", "单位")]:
             cleaned[field] = text(item.get(field), label, maximum=30)
         cleaned["quantity"] = number(item.get("quantity"), "半成品库存", integer=True)
+        if cleaned["unit"] == "个":
+            cleaned["unit"] = "件"
         semi.append(cleaned)
     replace_stock(db, "raw_material_stock", ["material", "warehouse", "specification", "position", "quantity", "unit", "weight_kg", "cuttable_qty"], raw)
     replace_stock(db, "semi_finished_stock", ["category", "material", "warehouse", "specification", "quantity", "unit"], semi)

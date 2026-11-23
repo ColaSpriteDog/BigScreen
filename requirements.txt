@@ -1,3 +1,5 @@
 Flask==3.1.2
 waitress==3.0.2
 tzdata==2025.2
+xlrd==2.0.2
+openpyxl==3.1.5

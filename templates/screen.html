@@ -6,9 +6,9 @@
   <title>智能制造生产监控中心</title>
   <link rel="stylesheet" href="/static/css/screen.css?v=20261123-stock">
   <script defer src="/static/vendor/echarts.min.js"></script>
-  <script defer src="/static/js/model.js"></script>
-  <script defer src="/static/js/api.js"></script>
-  <script defer src="/static/js/screen.js?v=20261123-hours"></script>
+  <script defer src="/static/js/model.js?v=20261123-unit-parens"></script>
+  <script defer src="/static/js/api.js?v=20261123-import"></script>
+  <script defer src="/static/js/screen.js?v=20261123-unit-parens"></script>
 </head>
 <body>
   <svg class="symbol-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><symbol id="safety-icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter"><path d="m12 2 8 4v7c0 4-5 7-8 9-3-2-8-5-8-9V6l8-4Z"/><path d="m8 12 3 3 5-6"/></g></symbol></svg>
@@ -30,14 +30,14 @@
           <div class="section-title">原材料明细<span class="inventory-warning" id="zeroCount"></span></div>
           <div class="material-table-wrap" tabindex="0" role="region" aria-label="原材料库存明细，内容超出时自动慢速滚动，可手动查看">
             <table class="inv-table material-table"><colgroup id="rawTableColumns"></colgroup>
-              <thead><tr id="rawTableHeader"><th scope="col">物料</th><th scope="col">规格</th><th scope="col">部位</th><th scope="col" class="material-number">库存</th><th scope="col" class="material-number">重量</th><th scope="col" class="material-status">状态</th><th scope="col" class="material-number">可切</th></tr></thead><tbody id="rawTableBody"></tbody>
+              <thead><tr id="rawTableHeader"><th scope="col">产品名称</th><th scope="col">规格型号</th><th scope="col" class="material-number">剩余数量</th><th scope="col" class="material-number">重量（吨）</th><th scope="col" class="material-number">可切（件）</th></tr></thead><tbody id="rawTableBody"></tbody>
             </table>
           </div>
         </div>
         <div class="inv-section">
-          <div class="section-title">半成品明细<span class="panel-note">按类别展示</span></div>
+          <div class="section-title">半成品明细</div>
           <div class="material-table-wrap" tabindex="0" role="region" aria-label="半成品库存明细，内容超出时自动慢速滚动，可手动查看">
-            <table class="inv-table semi-table"><thead><tr id="semiTableHeader"><th scope="col">类别</th><th scope="col">物料</th><th scope="col">仓库</th><th scope="col" class="semi-spec">规格</th><th scope="col">库存</th></tr></thead><tbody id="semiTableBody"></tbody></table>
+            <table class="inv-table semi-table"><thead><tr id="semiTableHeader"><th scope="col">类别</th><th scope="col">产品名称</th><th scope="col" class="semi-spec">规格型号</th><th scope="col">剩余数量</th></tr></thead><tbody id="semiTableBody"></tbody></table>
           </div>
         </div>
       </div>
@@ -49,8 +49,8 @@
     <section class="panel shipment-panel">
       <div class="panel-title">当月销售出货统计<span class="panel-note">TOP 8 型号</span></div>
       <div class="shipment-summary">
-        <div><div class="shipment-summary-label">本月订单量 / 件</div><div class="shipment-summary-value" id="orderQty">—</div></div>
-        <div><div class="shipment-summary-label">本月累计出货</div><div class="shipment-summary-value" id="shippedQty">—</div></div>
+        <div><div class="shipment-summary-label">本月订单量（件）</div><div class="shipment-summary-value" id="orderQty">—</div></div>
+        <div><div class="shipment-summary-label">本月累计出货（件）</div><div class="shipment-summary-value" id="shippedQty">—</div></div>
         <div><div class="shipment-summary-label">出货达成率</div><div class="shipment-summary-value" id="shipmentRate">—</div></div>
       </div>
       <div id="shipmentChart" class="shipment-chart" role="img" aria-label="按出货数量排序的件号柱状图"></div>
@@ -72,7 +72,7 @@
     </section>
     <section class="panel safety-panel">
       <div class="safety-icon"><svg aria-hidden="true"><use href="#safety-icon"></use></svg></div>
-      <div class="safety-text"><div><div class="safety-label">安全生产天数</div><div class="safety-caption">连续安全无事故运行</div></div><div class="safety-number"><span class="num" id="safetyDays">—</span><span class="unit">天</span></div></div>
+      <div class="safety-text"><div><div class="safety-label">安全生产天数</div><div class="safety-caption">连续安全无事故运行</div></div><div class="safety-number"><span class="num" id="safetyDays">—</span><span class="unit">（天）</span></div></div>
     </section>
   </main>
 </body>

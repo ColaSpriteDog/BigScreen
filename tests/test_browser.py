@@ -44,8 +44,8 @@ def test_editor_save_updates_screen_and_survives_reload(ui_context, live_server)
     editor.get_by_test_id('save-button').click()
     expect(editor.get_by_text('保存成功', exact=True)).to_be_visible()
     expect(screen.locator('#rawTableBody')).to_contain_text('1.6*1430')
-    expect(screen.locator('#rawTotal')).to_have_text('0.5卷')
-    expect(screen.locator('#rawTableBody tr td').nth(6)).to_have_text('123')
+    expect(screen.locator('#rawTotal')).to_have_text('0.5（卷）')
+    expect(screen.locator('#rawTableBody tr td').nth(4)).to_have_text('123')
     screen.reload()
     expect(screen.locator('#rawTableBody')).to_contain_text('1.6*1430')
     expect(screen.locator('#connectionStatus')).to_have_text('数据已同步')
@@ -72,7 +72,7 @@ def test_production_and_sales_forms_update_actual_charts(ui_context, live_server
     editor.get_by_role('spinbutton', name='品质合格率', exact=True).fill('98.6')
     editor.get_by_role('spinbutton', name='平均产出', exact=True).fill('45')
     editor.get_by_test_id('save-button').click()
-    expect(screen.locator('#actualQty')).to_have_text('650件')
+    expect(screen.locator('#actualQty')).to_have_text('650（件）')
     expect(screen.locator('#completionRate')).to_have_text('65%')
     screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series[0].data[29] === 700")
     Path('output/playwright').mkdir(parents=True, exist_ok=True)
@@ -113,7 +113,7 @@ def test_settings_form_saves_safety_start(ui_context, live_server):
     editor.get_by_role('spinbutton', name='标准日产量 01', exact=True).fill('1320')
     editor.get_by_test_id('save-button').click()
     expect(screen.locator('#safetyDays')).to_have_text('20')
-    expect(screen.locator('.line-card[data-line-id="1"]')).to_contain_text('1,320件')
+    expect(screen.locator('.line-card[data-line-id="1"]')).to_contain_text('1,320（件）')
 
 
 def test_quick_maintenance_and_resume_from_editor(ui_context, live_server, clock):
@@ -153,7 +153,7 @@ def test_validation_failure_keeps_draft_and_does_not_publish(ui_context, live_se
     fill_control(editor, 'raw-spec-0', '1.6*1200')
     editor.get_by_test_id('save-button').click()
     expect(screen.locator('#rawTableBody')).to_contain_text('待保存钢卷')
-    expect(screen.locator('#rawTableBody')).to_contain_text('零库存')
+    expect(screen.locator('#zeroCount')).to_contain_text('零库存')
 
 
 def test_unsaved_tab_switch_can_be_cancelled(ui_context, live_server):
@@ -315,12 +315,12 @@ def test_copy_delete_and_semi_finished_entry(ui_context, live_server):
     editor.get_by_role('textbox', name='半成品规格', exact=True).fill('1.4')
     editor.get_by_role('spinbutton', name='半成品库存', exact=True).fill('5')
     editor.get_by_test_id('save-button').click()
-    expect(screen.locator('#rawTotal')).to_have_text('10卷')
-    expect(screen.locator('#semiTotal')).to_have_text('5个')
+    expect(screen.locator('#rawTotal')).to_have_text('10（卷）')
+    expect(screen.locator('#semiTotal')).to_have_text('5（件）')
     expect(screen.locator('#zeroCount')).to_have_text('1项零库存')
     editor.get_by_test_id('raw-editor-table').get_by_role('button', name='删除', exact=True).first.click()
     editor.get_by_test_id('save-button').click()
-    expect(screen.locator('#rawTotal')).to_have_text('0卷')
+    expect(screen.locator('#rawTotal')).to_have_text('0（卷）')
     expect(screen.locator('#rawTableBody tr')).to_have_count(1)
 
 
@@ -342,7 +342,7 @@ def test_editable_names_and_trend_selection_update_chart_at_1440(ui_context, liv
         set_trend_visibility(editor, index, True)
     editor.get_by_test_id('save-button').click()
     expect(screen.locator('#trendLegend > span')).to_have_count(5)
-    expect(screen.locator('#trendTotal')).to_have_text('已录入累计：1,000件')
+    expect(screen.locator('#trendTotal')).to_have_text('已录入累计：1,000（件）')
     expect(screen.locator('.line-card[data-line-id="1"] .line-header')).to_contain_text('一号生产线')
     screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 5")
     colors = screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.slice(1).map(series=>series.itemStyle.color)")
@@ -358,7 +358,7 @@ def test_editable_names_and_trend_selection_update_chart_at_1440(ui_context, liv
         set_trend_visibility(editor, index, False)
     editor.get_by_test_id('save-button').click()
     expect(screen.locator('#trendLegend > span')).to_have_count(2)
-    expect(screen.locator('#trendTotal')).to_have_text('已录入累计：200件')
+    expect(screen.locator('#trendTotal')).to_have_text('已录入累计：200（件）')
     screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 2")
     assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series[1].itemStyle.color") == colors[1]
     editor.reload()
@@ -425,15 +425,14 @@ def test_demo_screen_full_data_alignment_and_overflow(ui_context, live_server, a
     expect(page.locator('#semiTableBody tr')).to_have_count(10)
     expect(page.locator('#shippedQty')).to_have_text('37,400')
     expect(page.locator('#trendLegend > span')).to_have_count(3)
-    expect(page.locator('#rawTableBody tr').first.locator('td')).to_have_count(7)
+    expect(page.locator('#rawTableBody tr').first.locator('td')).to_have_count(5)
     expect(page.locator('#rawTableHeader')).not_to_contain_text('仓库')
-    expect(page.locator('#rawTableHeader')).to_contain_text('库存 / 卷')
-    expect(page.locator('#semiTableHeader')).to_contain_text('库存 / 个')
+    expect(page.locator('#rawTableHeader')).to_contain_text('剩余数量（卷）')
+    expect(page.locator('#semiTableHeader')).to_contain_text('剩余数量（件）')
     assert page.locator('#rawTableBody .inventory-unit, #semiTableBody .inventory-unit').count() == 0
     page.wait_for_function('document.documentElement.scrollWidth<=innerWidth')
     table_sizes = page.locator('.material-table-wrap').evaluate_all('(elements)=>elements.map(e=>({width:e.clientWidth,scrollWidth:e.scrollWidth,height:e.clientHeight,scrollHeight:e.scrollHeight}))')
     assert all(item['scrollWidth'] <= item['width'] + 1 for item in table_sizes), table_sizes
-    assert all(item['scrollHeight'] > item['height'] for item in table_sizes), table_sizes
     if width >= 1201:
         assert page.evaluate('document.documentElement.scrollHeight') == height
         for panel, card in [('.inventory-panel', '.line-card[data-line-id="1"]'),

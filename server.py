@@ -5,6 +5,7 @@ import argparse
 from waitress import serve
 
 from backend import create_app
+from backend.inventory_import import MAX_FILE_BYTES
 
 
 def main():
@@ -18,7 +19,10 @@ def main():
     app = create_app(config)
     print(f"大屏：http://127.0.0.1:{arguments.port}/screen", flush=True)
     print(f"编辑：http://127.0.0.1:{arguments.port}/edit", flush=True)
-    serve(app, host=arguments.host, port=arguments.port, threads=4)
+    # 与 Flask 上传限额一致，避免 Waitress 将仅供解析的 Excel 请求体溢写到磁盘。
+    upload_limit = MAX_FILE_BYTES + 1024 * 1024
+    serve(app, host=arguments.host, port=arguments.port, threads=4,
+          inbuf_overflow=upload_limit, max_request_body_size=upload_limit)
 
 
 if __name__ == "__main__":
