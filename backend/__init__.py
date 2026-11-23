@@ -13,15 +13,17 @@ from werkzeug.exceptions import HTTPException
 from .db import close_db, get_db, initialize_database
 from .domain import ValidationError
 from .inventory_import import MAX_FILE_BYTES, parse_inventory_file
+from .shipment_import import parse_shipment_file
+from .warehouse_import import parse_warehouse_file
 from . import audit, auth, service
 
 
 class InventoryRequest(Request):
-    """让库存上传仅驻留内存，避免默认 multipart 解析器为大文件创建临时磁盘文件。"""
+    """让库存和出货上传仅驻留内存，避免默认 multipart 解析器为大文件创建临时磁盘文件。"""
 
     def _get_file_stream(self, total_content_length, content_type, filename=None, content_length=None):
-        """创建上传流；参数由 Werkzeug 提供文件元数据；库存预览返回内存流，其他请求沿用默认值。"""
-        if self.path == "/api/inventory/preview":
+        """创建上传流；参数由 Werkzeug 提供文件元数据；Excel 预览返回内存流，其他请求沿用默认值。"""
+        if self.path == "/api/inventory/preview" or (self.path.startswith(("/api/sales/", "/api/production/", "/api/warehouse/")) and self.path.endswith("/preview")):
             return BytesIO()
         return super()._get_file_stream(total_content_length, content_type, filename, content_length)
 
@@ -203,6 +205,30 @@ def create_app(configuration=None):
         """保存指定日期日报；day 为 YYYY-MM-DD；返回新版本，任一错误会回滚整批。"""
         return mutate(service.save_production, day)
 
+    @app.post("/api/warehouse/<month>/preview")
+    def warehouse_preview(month):
+        """统一预览日报；month 为出货月份、file 为上传；返回两张表及同版本现有记录，不写库。"""
+        request.max_content_length = MAX_FILE_BYTES + 1024 * 1024
+        if request.content_length and request.content_length > request.max_content_length:
+            raise ValidationError("Excel 文件不能超过 160 MiB")
+        upload = request.files.get("file")
+        if upload is None or not upload.filename:
+            raise ValidationError("请选择需要解析的 Excel 文件")
+        try:
+            result = parse_warehouse_file(upload, month)
+        finally:
+            upload.close()
+        db = get_db()
+        with service.consistent_read(db):
+            snapshot = service.editor_snapshot(db, app.config["NOW_PROVIDER"](), month=month)
+            result.update(version=snapshot["version"], existing={"inventory": snapshot["inventory"], "sales": snapshot["sales"]})
+        return jsonify(result)
+
+    @app.post("/api/warehouse/<month>/import")
+    def warehouse_import_write(month):
+        """一次保存库存与当月出货；month 为月份、JSON 为预览确认值；返回单次原子提交的新版本。"""
+        return mutate(service.save_warehouse_import, month)
+
     @app.put("/api/inventory")
     def inventory_write():
         """保存原材料和半成品；JSON 为两类完整列表；返回原子保存后的版本。"""
@@ -227,6 +253,20 @@ def create_app(configuration=None):
     def sales_write(month):
         """保存当月全部件号出货；month 为 YYYY-MM；返回保存后的版本。"""
         return mutate(service.save_sales, month)
+
+    @app.post("/api/sales/<month>/preview")
+    def shipment_preview(month):
+        """预览指定月份出货；month 为 YYYY-MM、file 为 Excel；返回逐条日期、件号、名称和数量，不写库。"""
+        request.max_content_length = MAX_FILE_BYTES + 1024 * 1024
+        if request.content_length and request.content_length > request.max_content_length:
+            raise ValidationError("Excel 文件不能超过 160 MiB")
+        upload = request.files.get("file")
+        if upload is None or not upload.filename:
+            raise ValidationError("请选择需要解析的 Excel 文件")
+        try:
+            return jsonify(parse_shipment_file(upload, month))
+        finally:
+            upload.close()
 
     @app.put("/api/settings")
     def settings_write():

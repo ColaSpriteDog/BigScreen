@@ -203,7 +203,7 @@
     document.getElementById("processFlow").replaceChildren(...items);
   }
 
-  /** 绘制两张图；data 为后端完整数据；无返回值，图表实例在后续轮询中复用。 */
+  /** 绘制产量趋势；data 为后端完整数据；无返回值，图表实例在后续轮询中复用。 */
   function renderCharts(data) {
     const trendElement = document.getElementById("newTrendChart");
     const shipmentElement = document.getElementById("shipmentChart");
@@ -212,18 +212,16 @@
       shipmentElement.textContent = "图表组件加载失败，请刷新";
       return;
     }
-    trendChart ||= echarts.init(trendElement);
     shipmentChart ||= echarts.init(shipmentElement);
+    shipmentChart.setOption(model.buildShipmentOption(data.sales.ranking, shipmentElement.clientHeight), { notMerge: true });
+    shipmentChart.resize();
+    trendChart ||= echarts.init(trendElement);
     const trendOption = model.buildTrendOption(data.trend, trendElement.clientHeight < 280, data.lines);
     if (!data.trend.series.some(series => series.data.some(value => value !== null))) {
       trendOption.graphic = { type: "text", left: "center", top: "middle", style: { text: "暂无产量记录", fill: "#a9c0d1", fontSize: 12 } };
     }
-    const shipmentOption = model.buildShipmentOption(data.sales.items);
-    if (!data.sales.items.length) shipmentOption.graphic = { type: "text", left: "center", top: "middle", style: { text: "暂无出货记录", fill: "#a9c0d1", fontSize: 12 } };
     trendChart.setOption(trendOption, { notMerge: true });
-    shipmentChart.setOption(shipmentOption, { notMerge: true });
     trendChart.resize();
-    shipmentChart.resize();
     const labels = [{ name: "所选产线合计", className: "total", color: "#27536c" },
       ...data.trend.series.map(series => ({ name: series.name, lineId: series.line_id, color: model.trendColor(series.line_id), className: "" }))];
     document.getElementById("trendLegend").replaceChildren(...labels.map(item => {
@@ -338,6 +336,7 @@
   function resizeCharts() {
     trendChart?.resize();
     shipmentChart?.resize();
+    shipmentChart?.setOption({ series: [{ barWidth: Math.max(6, Math.min(14, (document.getElementById("shipmentChart").clientHeight - 18) / 16)) }] });
   }
 
   const observer = new ResizeObserver(resizeCharts);

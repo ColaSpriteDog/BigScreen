@@ -80,17 +80,34 @@ def test_rejected_inventory_batch_rolls_back_everything(client):
     assert data['inventory']['raw'] == []
 
 
-def test_sales_total_uses_all_parts_and_display_only_top_eight(client):
-    """验证销售汇总；client 为客户端；断言完整明细参与累计、界面仅展示前八项。"""
+def test_sales_total_uses_all_rows_and_displays_every_detail(client):
+    """验证出货统计；client 为客户端；断言全部明细保留且累计完整，大屏另取降序前八项。"""
     items = [{'part_no': f'P-{index}', 'quantity': index * 10} for index in range(1, 11)]
     result = client.put('/api/sales/2026-11', json={'version': 0, 'order_qty': 1000, 'items': items})
     assert result.status_code == 200
     data = client.get('/api/dashboard').get_json()['sales']
     assert data['shipped_qty'] == 550
     assert data['achievement_rate'] == 55
-    assert len(data['items']) == 8
-    assert data['items'][0]['part_no'] == 'P-10'
+    assert len(data['items']) == 10
+    assert all(item['name'] == '' for item in data['ranking'])
+    assert data['items'][0]['part_no'] == 'P-1'
+    assert [item['part_no'] for item in data['ranking']] == [f'P-{index}' for index in range(10, 2, -1)]
+    assert sum(item['quantity'] for item in data['ranking']) == 520
     assert len(client.get('/api/editor').get_json()['sales']['items']) == 10
+
+
+def test_sales_ranking_merges_part_numbers_and_keeps_zero_and_details(client):
+    """验证件号汇总；client 为隔离客户端；断言大小写合并、名称不拆组、并列稳定和零值保留。"""
+    items = [{'part_no': part, 'name': name, 'quantity': quantity} for part, name, quantity in
+             [('B', '不同名称', 30), ('A', '左件', 10), ('a', '右件', 20), ('C', '零出货', 0)]]
+    assert client.put('/api/sales/2026-11', json={'version': 0, 'order_qty': 100, 'items': items}).status_code == 200
+    sales = client.get('/api/dashboard').get_json()['sales']
+    assert sales['ranking'] == [{'part_no': 'A', 'name': '左件 / 右件', 'quantity': 30},
+                                {'part_no': 'B', 'name': '不同名称', 'quantity': 30},
+                                {'part_no': 'C', 'name': '零出货', 'quantity': 0}]
+    assert sales['shipped_qty'] == 60 and sales['achievement_rate'] == 60
+    assert len(sales['items']) == 4
+    assert [item['quantity'] for item in client.get('/api/editor').get_json()['sales']['items']] == [30, 10, 20, 0]
 
 
 def test_downtime_automatically_updates_line_and_process(client, clock):
@@ -179,15 +196,16 @@ def test_cross_day_downtime_can_be_edited_from_following_day(client):
     assert client.get('/api/dashboard').get_json()['lines'][0]['runtime_rate'] == 91.67
 
 
-def test_duplicate_parts_roll_back_previous_month_data(client):
-    """验证件号去重及回滚；client 为客户端；断言大小写重复件号不会破坏原数据。"""
+def test_duplicate_parts_remain_separate_shipment_details(client):
+    """验证重复件号；client 为客户端；断言大小写重复件号独立保存，不合并数量。"""
     assert client.put('/api/sales/2026-11', json={'version': 0, 'order_qty': 100, 'items': [{'part_no': 'P-1', 'quantity': 20}]}).status_code == 200
     result = client.put('/api/sales/2026-11', json={'version': 1, 'order_qty': 500,
                         'items': [{'part_no': 'A', 'quantity': 1}, {'part_no': 'a', 'quantity': 2}]})
-    assert result.status_code == 400
+    assert result.status_code == 200
     sales = client.get('/api/dashboard').get_json()['sales']
-    assert sales['order_qty'] == 100
-    assert sales['shipped_qty'] == 20
+    assert sales['order_qty'] == 500
+    assert sales['shipped_qty'] == 3
+    assert [(row['part_no'], row['quantity']) for row in sales['items']] == [('A', 1), ('a', 2)]
 
 
 def test_month_and_daily_records_do_not_overwrite_other_periods(client):

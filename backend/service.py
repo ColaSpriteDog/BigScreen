@@ -114,7 +114,7 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True):
         "inventory": {"raw": rows(db, "SELECT * FROM raw_material_stock ORDER BY sort_order,id"),
                       "semi": rows(db, "SELECT * FROM semi_finished_stock ORDER BY sort_order,id")},
         "sales": {"order_qty": sale[0]["order_qty"] if sale else None,
-                  "items": rows(db, "SELECT * FROM shipment_month_item WHERE month=? ORDER BY quantity DESC,part_no", (month,))},
+                  "items": rows(db, "SELECT * FROM shipment_month_item WHERE month=? AND (shipment_date IS NULL OR substr(shipment_date,1,7)=?) ORDER BY sort_order,id", (month, month))},
         "processes": rows(db, "SELECT * FROM process_node ORDER BY sort_order"),
     }
     # 历史“个”与现在的“件”为同一计数口径，读取时统一单位，不在读取请求中修改数据库。
@@ -184,7 +184,20 @@ def dashboard_snapshot(db, now):
     sales = snapshot["sales"]
     sales["shipped_qty"] = sum(item["quantity"] for item in sales["items"]) if sales["items"] else None
     sales["achievement_rate"] = ratio(sales["shipped_qty"], sales["order_qty"])
-    sales["items"] = sales["items"][:8]
+    # 大屏按件号汇总排名，编辑与导入仍保留逐条明细；并列时按件号排序以保持轮询稳定。
+    shipments_by_part = {}
+    shipment_names = defaultdict(dict)
+    for item in sales["items"]:
+        key = item["part_no"].casefold()
+        if key not in shipments_by_part:
+            shipments_by_part[key] = {"part_no": item["part_no"], "quantity": 0}
+        shipments_by_part[key]["quantity"] += item["quantity"]
+        # 同件号保留各个非空名称并去重，避免数量汇总时丢失名称。
+        if item["name"]:
+            shipment_names[key][item["name"]] = None
+    for key, item in shipments_by_part.items():
+        item["name"] = " / ".join(shipment_names[key])
+    sales["ranking"] = sorted(shipments_by_part.values(), key=lambda item: (-item["quantity"], item["part_no"].casefold()))[:8]
     overview = snapshot["production"]["overview"]
     overview["completion_rate"] = ratio(overview["actual_qty"], overview["planned_qty"])
     processes = snapshot["processes"]
@@ -321,27 +334,49 @@ def save_inventory(db, payload):
     replace_stock(db, "semi_finished_stock", ["category", "material", "warehouse", "specification", "quantity", "unit"], semi)
 
 
+def save_warehouse_import(db, payload, month):
+    """统一保存仓库日报；payload 为库存和出货明细、month 为月份；无返回值，复用外层事务且保留原订单量。"""
+    parse_month(month)
+    inventory = object_value(payload.get("inventory"))
+    shipments = object_value(payload.get("shipments"))
+    sale = db.execute("SELECT order_qty FROM sales_month WHERE month=?", (month,)).fetchone()
+    save_inventory(db, inventory)
+    save_sales(db, {"order_qty": sale["order_qty"] if sale else None, "items": shipments.get("items")}, month)
+
+
 def save_sales(db, payload, month):
-    """保存月订单量及全部件号累计；month 为月份，payload 为录入值；无返回值。"""
+    """保存月订单量及逐条出货明细；month 为月份，payload 为录入值；无返回值，允许重复件号。"""
     parse_month(month)
     order_qty = number(payload.get("order_qty"), "本月订单量", integer=True, optional=True)
     db.execute("INSERT INTO sales_month VALUES(?,?) ON CONFLICT(month) DO UPDATE SET order_qty=excluded.order_qty", (month, order_qty))
     existing = {row["id"]: dict(row) for row in db.execute("SELECT * FROM shipment_month_item WHERE month=?", (month,))}
-    by_part = {row["part_no"].lower(): row["id"] for row in existing.values()}
     seen, prepared = set(), []
-    for item in array_value(payload.get("items"), "出货明细"):
+    for sort_order, item in enumerate(array_value(payload.get("items"), "出货明细")):
         part = text(item.get("part_no"), "件号", maximum=40)
         quantity = number(item.get("quantity"), "出货数量", integer=True)
         identifier = number(item.get("id"), "出货记录ID", integer=True, optional=True)
         if identifier is None:
-            identifier = by_part.get(part.lower())
+            # 没有 ID 的旧请求仅在唯一匹配时沿用身份，重复件号不再被当作同一条记录。
+            matches = [row["id"] for row in existing.values() if row["id"] not in seen
+                       and row["part_no"].lower() == part.lower()
+                       and ("shipment_date" not in item or row["shipment_date"] == item["shipment_date"])
+                       and ("name" not in item or row["name"] == item["name"])]
+            if len(matches) == 1:
+                identifier = matches[0]
         if identifier is not None:
             if identifier not in existing or identifier in seen:
                 raise ValidationError("出货记录不存在或重复，请重新加载")
             seen.add(identifier)
-        prepared.append((identifier, month, part, quantity))
+        # 旧客户端未提供名称时沿用原值，导入及编辑时按提交值保存。
+        name = text(item.get("name", existing[identifier]["name"] if identifier is not None else ""), "名称", maximum=80, optional=True)
+        day = item.get("shipment_date", existing[identifier]["shipment_date"] if identifier is not None else None) or None
+        if day is not None:
+            parse_date(day)
+            if day[:7] != month:
+                raise ValidationError("出库日期必须属于当前出货月份")
+        prepared.append((identifier, month, part, quantity, name or "", day, sort_order))
     db.execute("DELETE FROM shipment_month_item WHERE month=?", (month,))
-    db.executemany("INSERT INTO shipment_month_item(id,month,part_no,quantity) VALUES(?,?,?,?)", prepared)
+    db.executemany("INSERT INTO shipment_month_item(id,month,part_no,quantity,name,shipment_date,sort_order) VALUES(?,?,?,?,?,?,?)", prepared)
 
 
 def save_settings(db, payload, now):

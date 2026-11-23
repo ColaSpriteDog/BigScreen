@@ -90,6 +90,7 @@ def test_production_and_sales_forms_update_actual_charts(ui_context, live_server
     expect(screen.locator('#shippedQty')).to_have_text('5,300')
     expect(screen.locator('#shipmentRate')).to_have_text('53%')
     screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#shipmentChart')).getOption().series[0].data[0] === 3200")
+    assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#shipmentChart')).getOption().yAxis[0].data") == ['P-300', 'P-200', 'P-100']
     draft = production_payload(client)
     draft['downtimes'] = [{'line_id': 4, 'start_at': '2026-11-21T11:00:00', 'end_at': '2026-11-21T13:00:00', 'kind': 'maintenance'}]
     assert client.put('/api/production/2026-11-21', json=draft).status_code == 200

@@ -6,6 +6,7 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.test_inventory_import import summary_rows, workbook_bytes
+from tests.test_warehouse_import import warehouse_workbook
 
 
 @pytest.mark.parametrize('width,height', [(1440, 720), (375, 812)])
@@ -18,14 +19,14 @@ def test_excel_preview_cancel_apply_save_and_screen_columns(ui_context, live_ser
     page.goto(live_server + '/edit')
     expect(page.get_by_test_id('save-button')).to_be_enabled()
     page.get_by_role('tab', name='库存明细', exact=True).click()
-    expect(page.get_by_test_id('import-inventory')).to_be_enabled()
+    expect(page.get_by_test_id('import-warehouse')).to_be_enabled()
     # 先保留一条未保存输入，验证取消导入不会丢失手工草稿。
     page.get_by_test_id('add-raw').click()
     page.get_by_role('textbox', name='原材料物料', exact=True).fill('保留草稿')
     upload = {'name': '仓库日报.xlsx', 'mimeType': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              'buffer': workbook_bytes().getvalue()}
-    page.get_by_label('库存 Excel 文件', exact=True).set_input_files(upload)
-    dialog = page.get_by_role('dialog', name='库存导入预览')
+              'buffer': warehouse_workbook().getvalue()}
+    page.get_by_label('仓库日报 Excel 文件', exact=True).set_input_files(upload)
+    dialog = page.get_by_role('dialog', name='仓库日报导入预览')
     expect(dialog).to_be_visible()
     expect(dialog).to_contain_text('原材料 3 条')
     expect(dialog).to_contain_text('半成品 3 条')
@@ -36,24 +37,21 @@ def test_excel_preview_cancel_apply_save_and_screen_columns(ui_context, live_ser
     dialog.get_by_role('button', name='取消', exact=True).click()
     expect(dialog).not_to_be_visible()
     expect(page.get_by_role('textbox', name='原材料物料', exact=True)).to_have_value('保留草稿')
-    page.get_by_label('库存 Excel 文件', exact=True).set_input_files(upload)
+    page.get_by_label('仓库日报 Excel 文件', exact=True).set_input_files(upload)
     expect(dialog).to_be_visible()
-    page.get_by_test_id('apply-inventory-import').click()
+    page.get_by_test_id('confirm-warehouse-import').click()
     expect(dialog).not_to_be_visible()
-    expect(page.get_by_test_id('save-status')).to_contain_text('处修改未保存')
-    assert client.get('/api/editor').get_json()['inventory']['raw'] == []
-    page.get_by_test_id('save-button').click()
     expect(page.get_by_test_id('save-status')).to_have_text('所有修改已保存')
     saved = client.get('/api/editor').get_json()
     assert len(saved['inventory']['raw']) == 3 and len(saved['inventory']['semi']) == 3
+    assert len(saved['sales']['items']) == 4
     first_id = saved['inventory']['raw'][0]['id']
     first_audit = saved['inventory']['raw'][0]['_audit']
     # 再次导入相同数据，已有标识和录入人信息不能被当成新记录。
-    page.get_by_label('库存 Excel 文件', exact=True).set_input_files(upload)
+    page.get_by_label('仓库日报 Excel 文件', exact=True).set_input_files(upload)
     expect(dialog).to_be_visible()
-    page.get_by_test_id('apply-inventory-import').click()
-    expect(page.get_by_test_id('save-status')).to_have_text('所有修改已保存')
-    page.get_by_test_id('save-button').click()
+    page.get_by_test_id('confirm-warehouse-import').click()
+    expect(dialog).not_to_be_visible()
     expect(page.get_by_test_id('save-status')).to_have_text('所有修改已保存')
     current = client.get('/api/editor').get_json()['inventory']['raw'][0]
     assert current['id'] == first_id and current['_audit'] == first_audit
@@ -110,9 +108,9 @@ def test_failed_import_keeps_draft_and_reports_source_row(ui_context, live_serve
     page.get_by_role('textbox', name='原材料物料', exact=True).fill('待保存草稿')
     rows = summary_rows()
     rows[4][6] = -1
-    page.get_by_label('库存 Excel 文件', exact=True).set_input_files({'name': '错误日报.xlsx',
-        'mimeType': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'buffer': workbook_bytes(rows).getvalue()})
+    page.get_by_label('仓库日报 Excel 文件', exact=True).set_input_files({'name': '错误日报.xlsx',
+        'mimeType': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'buffer': warehouse_workbook(inventory_rows=rows).getvalue()})
     expect(page.locator('.request-error')).to_contain_text('第 5 行')
     expect(page.get_by_role('textbox', name='原材料物料', exact=True)).to_have_value('待保存草稿')
-    expect(page.get_by_role('dialog', name='库存导入预览')).not_to_be_visible()
+    expect(page.get_by_role('dialog', name='仓库日报导入预览')).not_to_be_visible()
     expect(page.get_by_test_id('save-button')).to_be_enabled()

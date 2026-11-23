@@ -105,16 +105,16 @@ def test_sales_preserves_record_ids_and_only_updates_changed_parts(client, app, 
     original = client.get('/api/editor').get_json()['sales']
     clock['now'] += timedelta(minutes=5)
     items = original['items'][::-1]
-    items[0] = {**items[0], 'part_no': 'A-new', 'quantity': 20}
+    items[1] = {**items[1], 'part_no': 'A-new', 'quantity': 20}
     version = client.get('/api/editor').get_json()['version']
     assert worker.put('/api/sales/2026-11', json={'version': version, 'order_qty': 100, 'items': items}).status_code == 200
     data = client.get('/api/editor').get_json()['sales']
     assert data['_audit'] == original['_audit']
     changed = next(row for row in data['items'] if row['part_no'] == 'A-new')
     untouched = next(row for row in data['items'] if row['part_no'] == 'B')
-    assert changed['id'] == items[0]['id']
+    assert changed['id'] == items[1]['id']
     assert changed['_audit']['created_by_name'] == '管理员' and changed['_audit']['modified_by_name'] == '张三'
-    assert untouched['_audit'] == original['items'][0]['_audit']
+    assert untouched['_audit'] == original['items'][1]['_audit']
     # 旧客户端没有记录 ID 时也按月份和件号保留现有身份。
     legacy = [{key: row[key] for key in ('part_no', 'quantity')} for row in data['items']]
     version = client.get('/api/editor').get_json()['version']

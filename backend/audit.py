@@ -11,7 +11,7 @@ TABLES = {
     "raw_material_stock": (("id",), ("material", "warehouse", "specification", "position", "quantity", "unit", "weight_kg", "cuttable_qty")),
     "semi_finished_stock": (("id",), ("category", "material", "warehouse", "specification", "quantity", "unit")),
     "sales_month": (("month",), ("order_qty",)),
-    "shipment_month_item": (("id",), ("month", "part_no", "quantity")),
+    "shipment_month_item": (("id",), ("month", "part_no", "quantity", "name", "shipment_date")),
     "screen_settings": (("id",), ("timezone", "safety_start_date")),
     "production_line": (("id",), ("name", "standard_qty", "show_in_trend")),
     "process_node": (("id",), ("manual_status",)),
@@ -32,6 +32,9 @@ def write_scope(writer, arguments):
                 "line_downtime": ("1", ())}
     if writer == "save_inventory":
         return {table: ("1", ()) for table in ("raw_material_stock", "semi_finished_stock")}
+    if writer == "save_warehouse_import":
+        return {"raw_material_stock": ("1", ()), "semi_finished_stock": ("1", ()),
+                "sales_month": ("month=?", arguments), "shipment_month_item": ("month=?", arguments)}
     if writer == "save_sales":
         return {table: ("month=?", arguments) for table in ("sales_month", "shipment_month_item")}
     if writer == "save_settings":

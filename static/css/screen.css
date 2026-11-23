@@ -133,6 +133,7 @@
         .shipment-summary-value { color: var(--text-strong); font: 700 clamp(17px, 1.5vw, 28px)/1.5 var(--font-number); white-space: nowrap; }
         .shipment-summary > div:nth-child(2) .shipment-summary-value { color: var(--orange); }
         .shipment-summary > div:nth-child(3) .shipment-summary-value { color: var(--green); }
+        /* 汇总后的前八个件号复用原横柱图布局，画布随面板高度伸缩。 */
         .shipment-chart { width: 100%; flex: 1; min-height: 0; contain: size; }
         .safety-panel { grid-column: 4; grid-row: 4; flex-direction: row; align-items: center; gap: 12px; background: linear-gradient(100deg, rgba(32, 221, 164, .07), transparent), var(--panel-bg); }
         .safety-icon { display: flex; align-items: center; justify-content: center; width: 68px; height: 68px; border: 1px solid #1d6a59; border-radius: 50%; color: var(--green); flex-shrink: 0; }

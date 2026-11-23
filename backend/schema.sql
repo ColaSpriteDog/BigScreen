@@ -86,7 +86,9 @@ CREATE TABLE IF NOT EXISTS shipment_month_item (
     month TEXT NOT NULL REFERENCES sales_month(month) ON DELETE CASCADE,
     part_no TEXT NOT NULL COLLATE NOCASE,
     quantity INTEGER NOT NULL CHECK (quantity >= 0),
-    UNIQUE(month, part_no)
+    name TEXT NOT NULL DEFAULT '',
+    shipment_date TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS daily_overview (

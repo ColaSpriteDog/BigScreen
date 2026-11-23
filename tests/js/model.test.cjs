@@ -2,6 +2,21 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const model = require('../../static/js/model.js');
 
+test('出货排名在件号下显示名称，悬浮提示保留完整名称，空名称不占行', () => {
+  const ranking = [{ part_no: 'LP000365', name: '门环左件', quantity: 8200 },
+    { part_no: 'LP000366', name: '', quantity: 7300 }];
+  const option = model.buildShipmentOption(ranking);
+  assert.deepEqual(option.yAxis.data, ['LP000365', 'LP000366']);
+  assert.equal(option.yAxis.axisLabel.formatter('LP000365', 0), '01  LP000365\n门环左件');
+  assert.equal(option.yAxis.axisLabel.formatter('LP000366', 1), '02  LP000366');
+  assert.equal(option.tooltip.formatter([{ name: 'LP000365', dataIndex: 0, value: 8200 }]), 'LP000365\n门环左件\n出货数量：8,200 件');
+  assert.equal(option.tooltip.formatter([{ name: 'LP000366', dataIndex: 1, value: 7300 }]), 'LP000366\n出货数量：7,300 件');
+  assert.deepEqual(option.series[0].data, [8200, 7300]);
+  // 满八项时两行文字必须落在各自的可用高度内。
+  const compact = model.buildShipmentOption(Array.from({ length: 8 }, () => ranking[0]), 210);
+  assert.ok(compact.yAxis.axisLabel.lineHeight * 2 < (210 - 18) / 8);
+});
+
 test('重量以吨显示并按千克保存，保留精度、零值和空白', () => {
   assert.equal(model.weightTonnes(185370), 185.37);
   assert.equal(model.weightKilograms(185.37), 185370);
@@ -28,14 +43,6 @@ test('趋势图保留未录入空值并正确呈现零产量', () => {
   assert.deepEqual(option.series[0].data, [null, 10]);
   assert.deepEqual(option.series[1].data, [null, 0]);
   assert.equal(option.tooltip.renderMode, 'richText');
-});
-
-test('出货图使用传入件号及数量，不修改原明细', () => {
-  const data = [{ part_no: 'P-1', quantity: 3200 }, { part_no: 'P-2', quantity: 0 }];
-  const option = model.buildShipmentOption(data);
-  assert.deepEqual(option.yAxis.data, ['P-1', 'P-2']);
-  assert.deepEqual(option.series[0].data, [3200, 0]);
-  assert.equal(data.length, 2);
 });
 
 test('四条产线颜色固定且选择变化或改名后不改变', () => {

@@ -38,6 +38,11 @@ body { margin: 0; background: var(--editor-bg); color: var(--editor-ink); font: 
 .order-attribution { margin-top: 8px; }
 /* 导入沿用现有工具栏与表格，预览弹窗在小屏中保留内部滚动。 */
 .inventory-import-toolbar { display: flex; justify-content: flex-end; padding-top: 16px; }
+.warehouse-import-toolbar { flex-wrap: wrap; gap: 10px; padding: 0 0 16px; }
+/* 三类明细在弹窗正文中滚动，确认按钮始终可见。 */
+.warehouse-import-dialog { display: flex; flex-direction: column; overflow: hidden; }
+.warehouse-import-dialog .el-dialog__body { min-height: 0; overflow: auto; }
+.warehouse-import-dialog .el-dialog__header, .warehouse-import-dialog .el-dialog__footer { flex-shrink: 0; }
 .inventory-import-dialog { max-height: calc(100dvh - 32px); overflow-y: auto; margin-top: 16px; }
 .inventory-import-dialog h3 { margin: 20px 0 10px; font-size: 15px; font-weight: 500; }
 .inventory-import-dialog .import-source { color: var(--editor-muted); overflow-wrap: anywhere; }

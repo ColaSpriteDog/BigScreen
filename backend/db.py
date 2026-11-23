@@ -29,6 +29,36 @@ def close_db(error=None):
         connection.close()
 
 
+def migrate_shipment_details(connection):
+    """升级旧出货表；connection 为 SQLite 连接；无返回值，保留旧记录并解除件号唯一限制。"""
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(shipment_month_item)")}
+    has_unique = any(row["unique"] for row in connection.execute("PRAGMA index_list(shipment_month_item)"))
+    if {"name", "shipment_date", "sort_order"} <= columns and not has_unique:
+        return
+    # 旧数据是月累计，不能伪造出库日期或拆分成逐次明细，原值与人员记录继续保留。
+    name = "name" if "name" in columns else "''"
+    day = "shipment_date" if "shipment_date" in columns else "NULL"
+    order = "sort_order" if "sort_order" in columns else "id"
+    sequence = connection.execute("SELECT seq FROM sqlite_sequence WHERE name='shipment_month_item'").fetchone()
+    connection.execute("SAVEPOINT shipment_details_migration")
+    try:
+        connection.execute("CREATE TABLE shipment_month_item_next (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                           "month TEXT NOT NULL REFERENCES sales_month(month) ON DELETE CASCADE, "
+                           "part_no TEXT NOT NULL COLLATE NOCASE, quantity INTEGER NOT NULL CHECK(quantity >= 0), "
+                           "name TEXT NOT NULL DEFAULT '', shipment_date TEXT, sort_order INTEGER NOT NULL DEFAULT 0)")
+        connection.execute("INSERT INTO shipment_month_item_next(id,month,part_no,quantity,name,shipment_date,sort_order) "
+                           f"SELECT id,month,part_no,quantity,{name},{day},{order} FROM shipment_month_item")
+        connection.execute("DROP TABLE shipment_month_item")
+        connection.execute("ALTER TABLE shipment_month_item_next RENAME TO shipment_month_item")
+        if sequence:
+            connection.execute("UPDATE sqlite_sequence SET seq=MAX(seq,?) WHERE name='shipment_month_item'", (sequence["seq"],))
+        connection.execute("RELEASE shipment_details_migration")
+    except Exception:
+        connection.execute("ROLLBACK TO shipment_details_migration")
+        connection.execute("RELEASE shipment_details_migration")
+        raise
+
+
 def initialize_database(path, zone, timestamp):
     """创建表及固定展示配置；path、zone、timestamp 为路径、时区和初始化时间；无返回值。"""
     destination = Path(path)
@@ -40,6 +70,7 @@ def initialize_database(path, zone, timestamp):
         if "planned_hours" not in daily_columns:
             connection.execute("ALTER TABLE production_daily ADD COLUMN planned_hours REAL NOT NULL DEFAULT 24 "
                                "CHECK (planned_hours >= 0 AND planned_hours <= 24)")
+        migrate_shipment_details(connection)
         connection.execute(
             "INSERT OR IGNORE INTO screen_settings(id,timezone,updated_at) VALUES(1,?,?)",
             (zone, timestamp),

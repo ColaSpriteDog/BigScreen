@@ -82,24 +82,35 @@ const BoardModel = (() => {
     };
   }
 
-  /** 创建出货图配置；items 为已排序的件号及数量；返回不修改输入的 ECharts 配置。 */
-  function buildShipmentOption(items) {
+  /** 创建出货排名横柱图；ranking 为已汇总排序的前八个件号、height 为容器高度；返回图表配置。 */
+  function buildShipmentOption(ranking, height = 300) {
+    // 根据每项可用高度调整双行标签，避免小屏显示满八项时相互遮挡。
+    const labelLineHeight = Math.max(10, Math.min(16, Math.floor((height - 18) / Math.max(1, ranking.length) / 2) - 1));
     return {
       animation: false,
       textStyle: { fontFamily: "Bahnschrift, Microsoft YaHei, sans-serif" },
-      grid: { top: 3, right: 70, left: 2, bottom: 3, containLabel: true },
-      tooltip: { trigger: "axis", renderMode: "richText", confine: true,
-        backgroundColor: "#122936", borderColor: "#1b3545", textStyle: { color: "#f2f7fb" } },
-      xAxis: { type: "value", min: 0, max: positiveMaximum, show: false },
-      yAxis: { type: "category", inverse: true, data: items.map(item => item.part_no),
+      grid: { top: 12, right: 66, bottom: 6, left: 4, containLabel: true },
+      tooltip: { trigger: "axis", confine: true, renderMode: "richText", axisPointer: { type: "shadow" },
+        backgroundColor: "#122936", borderColor: "#1b3545", textStyle: { color: "#f2f7fb" },
+        // 提示保留完整名称，便于查看坐标轴上因长度被截断的内容。
+        formatter: params => {
+          const item = ranking[params[0]?.dataIndex];
+          return `${params[0]?.name || ""}${item?.name ? "\n" + item.name : ""}\n出货数量：${formatNumber(params[0]?.value)} 件`;
+        } },
+      xAxis: { type: "value", show: false, min: 0 },
+      yAxis: { type: "category", inverse: true, data: ranking.map(item => item.part_no),
         axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: "#e0ebf2", fontSize: 11, interval: 0,
-          formatter: (value, index) => `${String(index + 1).padStart(2, "0")}  ${value}` } },
-      series: [{ name: "出货数量（件）", type: "bar", data: items.map(item => item.quantity), barWidth: 12,
+        axisLabel: { color: "#a9c0d1", fontSize: labelLineHeight < 13 ? 10 : 11, lineHeight: labelLineHeight, margin: 8, interval: 0, width: 112, overflow: "truncate",
+          // 件号与名称分行显示，名称为空时不添加空行。
+          formatter: (value, index) => `${String(index + 1).padStart(2, "0")}  ${value}${ranking[index]?.name ? "\n" + ranking[index].name : ""}` } },
+      series: [{ name: "出货数量", type: "bar", barWidth: Math.max(6, Math.min(14, (height - 18) / 16)),
         showBackground: true, backgroundStyle: { color: "#122936", borderRadius: 2 },
-        itemStyle: { color: parameters => parameters.dataIndex < 3 ? "#20dda4" : "#32c3f2", borderRadius: 2 },
-        label: { show: true, position: "right", color: "#e0ebf2", fontSize: 11,
-          formatter: parameters => `${formatNumber(parameters.value)}${unitLabel("件")}` } }],
+        itemStyle: { color: params => params.dataIndex < 3 ? "#20dda4" : "#32c3f2", borderRadius: [0, 3, 3, 0] },
+        label: { show: true, position: "right", distance: 6, color: "#a9c0d1", fontSize: 11, fontWeight: "bold",
+          formatter: params => `${formatNumber(params.value)} 件` },
+        data: ranking.map(item => item.quantity) }],
+      graphic: ranking.length ? undefined : { type: "text", left: "center", top: "middle",
+        style: { text: "暂无出货记录", fill: "#a9c0d1", fontSize: 12 } },
     };
   }
 

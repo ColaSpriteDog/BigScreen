@@ -49,7 +49,7 @@
         dirty: { production: false, inventory: false, sales: false, settings: false }, keyCounter: 0, partSearch: "",
         baselines: {}, employees: { items: [] }, currentEmployee: null,
         production: { lines: [], overview: {}, downtimes: [] }, inventory: { raw: [], semi: [] },
-        inventoryImport: null, importDialogVisible: false,
+        warehouseImport: null, warehouseDialogVisible: false, warehouseMonth: "",
         sales: { order_qty: null, items: [] }, settingsForm: { timezone: "UTC", safety_start_date: null, lines: [], processes: [] } };
     },
     computed: {
@@ -155,6 +155,7 @@
       applySnapshot(snapshot, module, initial = false) {
         this.version = snapshot.version;
         this.businessDate = snapshot.business_date;
+        if (!this.warehouseMonth) this.warehouseMonth = snapshot.business_date.slice(0, 7);
         this.timezone = snapshot.settings.timezone;
         this.serverTime = snapshot.server_time;
         this.savedAt = snapshot.version ? snapshot.updated_at : "";
@@ -320,12 +321,12 @@
           if (this.errorMessage) await this.focusError();
         }
       },
-      /** 匹配导入库存；items 为解析记录、kind 为 raw/semi；返回保留已有标识和仓库的完整快照。 */
-      prepareImportedStock(items, kind) {
+      /** 匹配导入库存；items 为解析行、kind 为 raw/semi、inventory 为现有快照；返回保留标识和仓库的记录。 */
+      prepareImportedStock(items, kind, inventory) {
         const fields = kind === "raw" ? ["material", "specification", "position", "unit"] : ["category", "material", "specification", "unit"];
         const identity = item => JSON.stringify(fields.map(field => String(item[field] ?? "").replace(/\s+/g, "")));
         const existing = new Map();
-        for (const item of this.inventory[kind]) {
+        for (const item of inventory[kind]) {
           const key = identity(item);
           if (!existing.has(key)) existing.set(key, []);
           existing.get(key).push(item);
@@ -339,12 +340,12 @@
           return previous ? { ...previous, ...values, specification: previous.specification, warehouse: previous.warehouse } : { ...values, _key: this.newKey() };
         });
       },
-      /** 解析所选 Excel；event 为文件选择事件；返回 Promise，成功仅打开预览，失败保留原草稿。 */
-      async previewInventoryFile(event) {
+      /** 上传仓库日报；event 为文件选择事件；返回 Promise，一次解析库存和所选月份出货，预览不改变草稿。 */
+      async previewWarehouseFile(event) {
         const file = event.target.files?.[0];
         event.target.value = "";
         if (!file || this.loading || this.saving || !this.moduleReady) return;
-        this.inventoryImport = null;
+        this.warehouseImport = null;
         this.errorMessage = "";
         if (!/\.(xls|xlsx)$/i.test(file.name) || file.size > 160 * 1024 * 1024) {
           this.errorMessage = "请选择不超过 160 MiB 的 .xls 或 .xlsx 文件";
@@ -355,11 +356,13 @@
         try {
           const body = new FormData();
           body.append("file", file);
-          const result = await BoardAPI.request("/api/inventory/preview", { method: "POST", formData: body, timeout: 120000 });
-          const raw = this.prepareImportedStock(result.raw, "raw");
-          const semi = this.prepareImportedStock(result.semi, "semi");
-          this.inventoryImport = { ...result, filename: file.name, prepared: { raw, semi } };
-          this.importDialogVisible = true;
+          const path = "/api/warehouse/" + this.warehouseMonth + "/preview";
+          const result = await BoardAPI.request(path, { method: "POST", formData: body, timeout: 120000 });
+          const raw = this.prepareImportedStock(result.inventory.raw, "raw", result.existing.inventory);
+          const semi = this.prepareImportedStock(result.inventory.semi, "semi", result.existing.inventory);
+          const items = this.prepareImportedShipments(result.shipments.items, result.existing.sales.items);
+          this.warehouseImport = { ...result, filename: file.name, prepared: { inventory: { raw, semi }, shipments: { items } } };
+          this.warehouseDialogVisible = true;
         } catch (error) {
           if (error.status === 401) this.handleSessionExpired();
           this.errorMessage = error.message;
@@ -368,16 +371,48 @@
           if (this.errorMessage) await this.focusError();
         }
       },
-      /** 应用预览到库存草稿；无参数；无返回值，按整份快照替换两类库存，仍需手动保存。 */
-      applyInventoryImport() {
-        if (!this.inventoryImport) return;
-        this.inventory = clone(this.inventoryImport.prepared);
-        this.markDirty("inventory");
-        this.importDialogVisible = false;
-        ElementPlus.ElMessage.success("已应用到草稿，请核对后保存库存");
+      /** 匹配逐条出货；items 为解析行、previousItems 为现有记录；返回保留身份且不合并重复行的列表。 */
+      prepareImportedShipments(items, previousItems) {
+        const identity = item => JSON.stringify([item.shipment_date || "", item.part_no.trim().toLowerCase(), item.name || ""]);
+        const existing = new Map();
+        for (const item of previousItems) {
+          const key = identity(item);
+          if (!existing.has(key)) existing.set(key, []);
+          existing.get(key).push(item);
+        }
+        // 重复件号按日期和出现顺序逐条匹配，一条旧记录最多使用一次。
+        return items.map(({ source_row, ...values }) => {
+          const previous = existing.get(identity(values))?.shift();
+          return previous ? { ...previous, ...values } : { ...values, _key: this.newKey() };
+        });
       },
-      /** 释放导入预览；无参数；无返回值，不改变库存草稿。 */
-      clearInventoryImport() { this.inventoryImport = null; },
+      /** 确认统一导入；无参数；返回 Promise，库存和出货同一事务保存，失败保留预览与原草稿。 */
+      async confirmWarehouseImport() {
+        if (!this.warehouseImport || this.warehouseImport.saved || this.saving || this.loading) return;
+        const preview = this.warehouseImport;
+        this.saving = true;
+        preview.error = "";
+        try {
+          const result = await BoardAPI.request("/api/warehouse/" + preview.month + "/import", {
+            method: "POST", body: { version: preview.version, ...clone(preview.prepared) } });
+          preview.saved = true;
+          this.savedAt = result.updated_at;
+          BoardAPI.notifySaved();
+          // 成功后两模块一起刷新；其他模块的未保存草稿继续保留。
+          const snapshot = await BoardAPI.request("/api/editor?" + new URLSearchParams({ date: this.selectedDate, month: preview.month }));
+          this.applySnapshot(snapshot, "inventory");
+          this.applySnapshot(snapshot, "sales");
+          this.warehouseDialogVisible = false;
+          ElementPlus.ElMessage.success("库存和当月出货已一起导入");
+        } catch (error) {
+          if (error.status === 401) this.handleSessionExpired();
+          preview.error = preview.saved ? "库存和出货已保存，但页面刷新失败，请关闭预览后重新加载：" + error.message : error.message;
+          await this.$nextTick();
+          this.$refs.warehouseError?.$el.scrollIntoView({ block: "center", behavior: "instant" });
+        } finally { this.saving = false; }
+      },
+      /** 释放统一预览；无参数；无返回值，取消时不改变两类业务草稿。 */
+      clearWarehouseImport() { this.warehouseImport = null; },
       /** 新增原材料草稿；无参数；无返回值，数量保持未填写。 */
       addRaw() {
         this.inventory.raw.push({ _key: this.newKey(), material: "", warehouse: this.rawWarehouses[0], specification: "", position: "", quantity: null, unit: "卷", weight_kg: null, cuttable_qty: null });
@@ -438,7 +473,8 @@
       /** 新增件号草稿；无参数；无返回值，并清空搜索使新行可见。 */
       addShipment() {
         this.partSearch = "";
-        this.sales.items.push({ _key: this.newKey(), part_no: "", quantity: null });
+        const day = this.businessDate.startsWith(this.selectedMonth) ? this.businessDate : this.selectedMonth + "-01";
+        this.sales.items.push({ _key: this.newKey(), shipment_date: day, part_no: "", name: "", quantity: null });
         this.markDirty("sales");
       },
       /** 删除指定出货草稿；item 为原行引用；无返回值。 */
