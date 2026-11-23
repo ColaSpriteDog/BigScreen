@@ -36,6 +36,10 @@ def initialize_database(path, zone, timestamp):
     with connect_database(destination) as connection:
         connection.execute("PRAGMA journal_mode = WAL")
         connection.executescript(Path(__file__).with_name("schema.sql").read_text(encoding="utf-8"))
+        daily_columns = {row["name"] for row in connection.execute("PRAGMA table_info(production_daily)")}
+        if "planned_hours" not in daily_columns:
+            connection.execute("ALTER TABLE production_daily ADD COLUMN planned_hours REAL NOT NULL DEFAULT 24 "
+                               "CHECK (planned_hours >= 0 AND planned_hours <= 24)")
         connection.execute(
             "INSERT OR IGNORE INTO screen_settings(id,timezone,updated_at) VALUES(1,?,?)",
             (zone, timestamp),

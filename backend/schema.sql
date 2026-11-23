@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS production_daily (
     work_date TEXT NOT NULL,
     actual_qty INTEGER CHECK (actual_qty IS NULL OR actual_qty >= 0),
     defect_qty INTEGER CHECK (defect_qty IS NULL OR defect_qty >= 0),
+    planned_hours REAL NOT NULL DEFAULT 24 CHECK (planned_hours >= 0 AND planned_hours <= 24),
     CHECK (defect_qty IS NULL OR (actual_qty IS NOT NULL AND defect_qty <= actual_qty)),
     PRIMARY KEY (line_id, work_date)
 );
@@ -111,4 +112,16 @@ CREATE TABLE IF NOT EXISTS employee (
     auth_version INTEGER NOT NULL DEFAULT 0
 );
 
-PRAGMA user_version = 2;
+CREATE TABLE IF NOT EXISTS record_attribution (
+    record_type TEXT NOT NULL,
+    record_key TEXT NOT NULL,
+    created_by_id INTEGER,
+    created_by_name TEXT,
+    created_at TEXT,
+    modified_by_id INTEGER NOT NULL,
+    modified_by_name TEXT NOT NULL,
+    modified_at TEXT NOT NULL,
+    PRIMARY KEY (record_type, record_key)
+);
+
+PRAGMA user_version = 4;

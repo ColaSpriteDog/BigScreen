@@ -90,7 +90,7 @@ def test_downtime_automatically_updates_line_and_process(client, clock):
     assert client.put('/api/production/2026-11-21', json=draft).status_code == 200
     data = client.get('/api/dashboard').get_json()
     assert data['lines'][3]['status'] == 'maintenance'
-    assert data['lines'][3]['runtime_rate'] == 91.67
+    assert data['lines'][3]['runtime_rate'] == 95.83
     assert data['processes'][3]['status_label'] == 'B线维护'
     clock['now'] = datetime(2026, 11, 21, 13, tzinfo=timezone.utc)
     fresh = client.get('/api/dashboard').get_json()
@@ -150,7 +150,7 @@ def test_quick_stop_and_resume_are_versioned_and_idempotent_on_retry(client, clo
     assert client.post(f'/api/downtime/{identifier}/finish', json={'version': 2}).status_code == 409
     data = client.get('/api/dashboard').get_json()
     assert data['lines'][3]['status'] == 'running'
-    assert data['lines'][3]['runtime_rate'] == 98.63
+    assert data['lines'][3]['runtime_rate'] == 99.31
     assert len(client.get('/api/editor').get_json()['production']['downtimes']) == 1
 
 
@@ -164,7 +164,7 @@ def test_cross_day_downtime_can_be_edited_from_following_day(client):
     assert len(current['downtimes']) == 1
     current['downtimes'][0]['end_at'] = '2026-11-21T02:00:00'
     assert client.put('/api/production/2026-11-21', json=current).status_code == 200
-    assert client.get('/api/dashboard').get_json()['lines'][0]['runtime_rate'] == 83.33
+    assert client.get('/api/dashboard').get_json()['lines'][0]['runtime_rate'] == 91.67
 
 
 def test_duplicate_parts_roll_back_previous_month_data(client):

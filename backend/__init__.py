@@ -11,7 +11,7 @@ from werkzeug.exceptions import HTTPException
 
 from .db import close_db, get_db, initialize_database
 from .domain import ValidationError
-from . import auth, service
+from . import audit, auth, service
 
 
 def utc_now():
@@ -95,7 +95,7 @@ def create_app(configuration=None):
         payload = service.object_value(request.get_json())
         db = get_db()
         now = app.config["NOW_PROVIDER"]()
-        with service.versioned_write(db, payload, now):
+        with service.versioned_write(db, payload, now, g.employee, audit.write_scope(writer.__name__, arguments)):
             result = writer(db, payload, *arguments, now) if writer in {
                 service.save_production, service.save_settings, service.start_downtime} else writer(db, payload, *arguments)
         return jsonify(version=service.settings(db)["version"], updated_at=now.isoformat(), result=result)
@@ -216,7 +216,7 @@ def create_app(configuration=None):
         payload = service.object_value(request.get_json())
         db = get_db()
         now = app.config["NOW_PROVIDER"]()
-        with service.versioned_write(db, payload, now):
+        with service.versioned_write(db, payload, now, g.employee, audit.write_scope("finish_downtime", ())):
             service.finish_downtime(db, identifier, now)
         return jsonify(version=service.settings(db)["version"], updated_at=now.isoformat())
 

@@ -6,6 +6,8 @@ from datetime import timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from . import audit
+
 from .domain import (STATUS_LABELS, STOP_KINDS, ValidationError, day_bounds, line_runtime,
                      number, parse_date, parse_datetime, parse_month, ratio, text)
 
@@ -39,14 +41,17 @@ def array_value(value, label, limit=2000):
 
 
 @contextmanager
-def versioned_write(db, payload, now):
-    """执行原子写入；payload 必须带 version，now 为保存时间；产生连接并在成功后递增版本。"""
+def versioned_write(db, payload, now, actor=None, scope=None):
+    """执行原子写入；payload 含版本、now 为时间、actor/scope 为可信操作人及变更范围；产生连接，成功后递增版本。"""
     expected = number(payload.get("version"), "数据版本", integer=True)
     db.execute("BEGIN IMMEDIATE")
     try:
         if settings(db)["version"] != expected:
             raise ConflictError("数据已被其他操作更新，请重新加载后保存")
+        before = audit.capture(db, scope) if actor is not None and scope else None
         yield db
+        if before is not None:
+            audit.record_changes(db, before, audit.capture(db, scope), actor, now)
         db.execute("UPDATE screen_settings SET version=version+1,updated_at=? WHERE id=1", (now.isoformat(),))
         db.commit()
     except Exception:
@@ -73,8 +78,8 @@ def downtime_rows(db, day, zone):
                 (finish.isoformat(), start.isoformat()))
 
 
-def editor_snapshot(db, now, day=None, month=None):
-    """读取编辑表单；now 为当前时间，day/month 为选定日期月份；返回各模块原始录入字段。"""
+def editor_snapshot(db, now, day=None, month=None, include_audit=True):
+    """读取编辑表单；now 为当前时间，day/month 为周期，include_audit 控制人员信息；返回原始录入字段及可选归属。"""
     config = settings(db)
     zone = config["timezone"]
     today = now.astimezone(ZoneInfo(zone)).date().isoformat()
@@ -84,18 +89,24 @@ def editor_snapshot(db, now, day=None, month=None):
     output = {row["line_id"]: row for row in rows(db, "SELECT * FROM production_daily WHERE work_date=?", (day,))}
     lines = rows(db, "SELECT * FROM production_line ORDER BY sort_order")
     current_stops = downtime_rows(db, today, zone)
+    selected_stops = current_stops if day == today else downtime_rows(db, day, zone)
     for line in lines:
         line.update(actual_qty=output.get(line["id"], {}).get("actual_qty"),
-                    defect_qty=output.get(line["id"], {}).get("defect_qty"))
-        line.update(line_runtime(now, zone, [item for item in current_stops if item["line_id"] == line["id"]]))
-    stops = downtime_rows(db, day, zone)
+                    defect_qty=output.get(line["id"], {}).get("defect_qty"),
+                    planned_hours=output.get(line["id"], {}).get("planned_hours", 24))
+        runtime = line_runtime(now, zone, [item for item in current_stops if item["line_id"] == line["id"]], line["planned_hours"])
+        if day != today:
+            selected_runtime = line_runtime(now, zone, [item for item in selected_stops if item["line_id"] == line["id"]], line["planned_hours"], day)
+            runtime.update(runtime_rate=selected_runtime["runtime_rate"], downtime_minutes=selected_runtime["downtime_minutes"])
+        line.update(runtime)
+    stops = selected_stops
     for item in stops:
         item["start_at"] = parse_datetime(item["start_at"]).astimezone(ZoneInfo(zone)).strftime("%Y-%m-%dT%H:%M:%S")
         if item["end_at"]:
             item["end_at"] = parse_datetime(item["end_at"]).astimezone(ZoneInfo(zone)).strftime("%Y-%m-%dT%H:%M:%S")
     overview = rows(db, "SELECT * FROM daily_overview WHERE work_date=?", (day,))
     sale = rows(db, "SELECT * FROM sales_month WHERE month=?", (month,))
-    return {
+    result = {
         "version": config["version"], "updated_at": config["updated_at"], "server_time": now.isoformat(),
         "business_date": today, "date": day, "month": month, "settings": config,
         "production": {"lines": lines, "downtimes": stops, "overview": overview[0] if overview else {
@@ -106,6 +117,27 @@ def editor_snapshot(db, now, day=None, month=None):
                   "items": rows(db, "SELECT * FROM shipment_month_item WHERE month=? ORDER BY quantity DESC,part_no", (month,))},
         "processes": rows(db, "SELECT * FROM process_node ORDER BY sort_order"),
     }
+    if include_audit:
+        lookup = audit.attribution_lookup(db)
+        audit.attach([config], "screen_settings", lookup)
+        for line in lines:
+            audit.attach([line], "production_line", lookup)
+            line["_configuration_audit"] = line.pop("_audit")
+            source = {"work_date": day, "line_id": line["id"], "actual_qty": line["actual_qty"], "defect_qty": line["defect_qty"],
+                      "planned_hours": line["planned_hours"]}
+            audit.attach([source], "production_daily", lookup, line["id"] in output)
+            line["_audit"] = source["_audit"]
+        audit.attach([result["production"]["overview"]], "daily_overview", lookup, bool(overview))
+        # 未保存的默认全局指标没有主键，保存过的记录使用数据库中的业务日期。
+        audit.attach(stops, "line_downtime", lookup)
+        audit.attach(result["inventory"]["raw"], "raw_material_stock", lookup)
+        audit.attach(result["inventory"]["semi"], "semi_finished_stock", lookup)
+        sale_info = sale[0] if sale else {"month": month, "order_qty": None}
+        audit.attach([sale_info], "sales_month", lookup, bool(sale))
+        result["sales"]["_audit"] = sale_info["_audit"]
+        audit.attach(result["sales"]["items"], "shipment_month_item", lookup)
+        audit.attach(result["processes"], "process_node", lookup)
+    return result
 
 
 def unit_totals(items):
@@ -118,7 +150,7 @@ def unit_totals(items):
 
 def dashboard_snapshot(db, now):
     """生成大屏数据；db 为一致性读连接、now 为当前时间；返回全部计算后的展示模块。"""
-    snapshot = editor_snapshot(db, now)
+    snapshot = editor_snapshot(db, now, include_audit=False)
     day, zone = snapshot["date"], snapshot["settings"]["timezone"]
     lines = snapshot["production"]["lines"]
     monthly = {row["line_id"]: row["quantity"] for row in rows(db,
@@ -191,14 +223,17 @@ def save_production(db, payload, day, now):
         raise ValidationError("生产日报不能录入未来日期")
     lines = array_value(payload.get("lines"), "产线日报", 20)
     known = validate_line_ids(db, lines)
+    existing_hours = {row["line_id"]: row["planned_hours"] for row in db.execute(
+        "SELECT line_id,planned_hours FROM production_daily WHERE work_date=?", (day,))}
     for item in lines:
+        planned_hours = number(item.get("planned_hours", existing_hours.get(item["id"], 24)), "计划生产时长", maximum=24)
         actual = number(item.get("actual_qty"), "实际产量", integer=True, optional=True)
         defects = number(item.get("defect_qty"), "不良数量", integer=True, optional=True)
         if defects is not None and (actual is None or defects > actual):
             raise ValidationError("不良数量不能大于实际产量，且必须先填写实际产量")
-        db.execute("INSERT INTO production_daily(line_id,work_date,actual_qty,defect_qty) VALUES(?,?,?,?) "
-                   "ON CONFLICT(line_id,work_date) DO UPDATE SET actual_qty=excluded.actual_qty,defect_qty=excluded.defect_qty",
-                   (item["id"], day, actual, defects))
+        db.execute("INSERT INTO production_daily(line_id,work_date,actual_qty,defect_qty,planned_hours) VALUES(?,?,?,?,?) "
+                   "ON CONFLICT(line_id,work_date) DO UPDATE SET actual_qty=excluded.actual_qty,defect_qty=excluded.defect_qty,"
+                   "planned_hours=excluded.planned_hours", (item["id"], day, actual, defects, planned_hours))
     overview = object_value(payload.get("overview"))
     values = [number(overview.get(field), label, integer=integer, optional=True, maximum=maximum)
               for field, label, integer, maximum in [
@@ -283,11 +318,22 @@ def save_sales(db, payload, month):
     parse_month(month)
     order_qty = number(payload.get("order_qty"), "本月订单量", integer=True, optional=True)
     db.execute("INSERT INTO sales_month VALUES(?,?) ON CONFLICT(month) DO UPDATE SET order_qty=excluded.order_qty", (month, order_qty))
-    db.execute("DELETE FROM shipment_month_item WHERE month=?", (month,))
+    existing = {row["id"]: dict(row) for row in db.execute("SELECT * FROM shipment_month_item WHERE month=?", (month,))}
+    by_part = {row["part_no"].lower(): row["id"] for row in existing.values()}
+    seen, prepared = set(), []
     for item in array_value(payload.get("items"), "出货明细"):
         part = text(item.get("part_no"), "件号", maximum=40)
         quantity = number(item.get("quantity"), "出货数量", integer=True)
-        db.execute("INSERT INTO shipment_month_item(month,part_no,quantity) VALUES(?,?,?)", (month, part, quantity))
+        identifier = number(item.get("id"), "出货记录ID", integer=True, optional=True)
+        if identifier is None:
+            identifier = by_part.get(part.lower())
+        if identifier is not None:
+            if identifier not in existing or identifier in seen:
+                raise ValidationError("出货记录不存在或重复，请重新加载")
+            seen.add(identifier)
+        prepared.append((identifier, month, part, quantity))
+    db.execute("DELETE FROM shipment_month_item WHERE month=?", (month,))
+    db.executemany("INSERT INTO shipment_month_item(id,month,part_no,quantity) VALUES(?,?,?,?)", prepared)
 
 
 def save_settings(db, payload, now):

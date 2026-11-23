@@ -27,7 +27,7 @@
     }
     if (current && saved && typeof current === "object" && typeof saved === "object") {
       return [...new Set([...Object.keys(current), ...Object.keys(saved)])]
-        .filter(key => key !== "_key").reduce((total, key) => total + countChanges(current[key], saved[key]), 0);
+        .filter(key => !["_key", "_audit", "_configuration_audit"].includes(key)).reduce((total, key) => total + countChanges(current[key], saved[key]), 0);
     }
     return 1;
   }
@@ -158,13 +158,14 @@
         }
         if (initial || module === "inventory") this.inventory = { raw: this.keyed(snapshot.inventory.raw), semi: this.keyed(snapshot.inventory.semi) };
         if (initial || module === "sales") {
-          this.sales = { order_qty: snapshot.sales.order_qty, items: this.keyed(snapshot.sales.items) };
+          this.sales = { order_qty: snapshot.sales.order_qty, _audit: clone(snapshot.sales._audit), items: this.keyed(snapshot.sales.items) };
           this.selectedMonth = this.loadedMonth = snapshot.month;
           this.partSearch = "";
         }
         if (initial || module === "settings") this.settingsForm = { timezone: snapshot.settings.timezone,
           safety_start_date: snapshot.settings.safety_start_date,
-          lines: clone(snapshot.production.lines).map(line => ({ ...line, show_in_trend: Boolean(line.show_in_trend) })),
+          _audit: clone(snapshot.settings._audit),
+          lines: clone(snapshot.production.lines).map(line => ({ ...line, _audit: line._configuration_audit, show_in_trend: Boolean(line.show_in_trend) })),
           processes: clone(snapshot.processes.filter(item => item.id === 1 || item.id === 5)) };
         this.versions[module] = snapshot.version;
         for (const item of this.modules) if (initial || item.id === module) {
@@ -359,6 +360,7 @@
       copyRow(kind, index) {
         const item = clone(this.inventory[kind][index]);
         delete item.id;
+        delete item._audit;
         item._key = this.newKey();
         this.inventory[kind].splice(index + 1, 0, item);
         this.markDirty("inventory");
@@ -418,6 +420,36 @@
       this.loadModule("production", true);
       window.addEventListener("beforeunload", this.preventUnload);
     },
+  });
+  application.component("record-audit", {
+    props: { meta: Object, timezone: { type: String, default: "UTC" }, prefix: { type: String, default: "" } },
+    computed: {
+      /** 判断是否有可查的人员记录；无参数；返回是否显示详细浮层。 */
+      recorded() { return this.meta?.state === "saved"; },
+      /** 生成紧凑修改信息；无参数；返回姓名和业务时区时间，历史及草稿显示对应状态。 */
+      label() {
+        if (!this.meta || this.meta.state === "unsaved") return "未保存";
+        if (!this.recorded) return "历史数据";
+        return this.prefix + this.meta.modified_by_name + " · " + this.formatTime(this.meta.modified_at, false);
+      },
+      /** 生成只读人员详情；无参数；返回首次录入与最后修改两行完整信息。 */
+      details() {
+        if (!this.recorded) return [];
+        return [this.meta.created_at ? "录入：" + this.meta.created_by_name + " · " + this.formatTime(this.meta.created_at, true) : "录入：历史数据",
+          "修改：" + this.meta.modified_by_name + " · " + this.formatTime(this.meta.modified_at, true)];
+      },
+    },
+    methods: {
+      /** 按业务时区显示时间；value 为 ISO 时间，full 控制是否包含年份秒数；返回格式化文本。 */
+      formatTime(value, full) {
+        return new Intl.DateTimeFormat("zh-CN", { timeZone: this.timezone, ...(full ? { year: "numeric", second: "2-digit" } : {}),
+          month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value));
+      },
+    },
+    template: `<el-tooltip :disabled="!recorded" :trigger="['hover','focus','click']" effect="light" placement="top" :show-after="150">
+      <template #content><div class="audit-details"><div v-for="line in details" :key="line">{{line}}</div></div></template>
+      <span class="record-audit" :tabindex="recorded?0:undefined" :aria-label="recorded?details.join('；'):label">{{label}}</span>
+    </el-tooltip>`,
   });
   application.use(ElementPlus, { locale: window.ElementPlusLocaleZhCn });
   application.mount("#editorApp");

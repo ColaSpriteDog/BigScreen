@@ -7,7 +7,7 @@ from flask import g, session
 
 from .db import connect_database
 from .domain import ValidationError
-from . import service
+from . import audit, service
 
 
 def initialize_auth(path):
@@ -51,6 +51,7 @@ def employee_snapshot(db):
     config = service.settings(db)
     employees = [dict(public_employee(row), enabled=bool(row["enabled"]), password="")
                  for row in db.execute("SELECT * FROM employee ORDER BY id")]
+    audit.attach(employees, "employee", audit.attribution_lookup(db))
     return {"version": config["version"], "updated_at": config["updated_at"], "employees": employees}
 
 

@@ -45,7 +45,7 @@ def test_editor_save_updates_screen_and_survives_reload(ui_context, live_server)
     expect(editor.get_by_text('保存成功', exact=True)).to_be_visible()
     expect(screen.locator('#rawTableBody')).to_contain_text('1.6*1430')
     expect(screen.locator('#rawTotal')).to_have_text('0.5卷')
-    expect(screen.locator('#rawTableBody tr td').nth(7)).to_have_text('123')
+    expect(screen.locator('#rawTableBody tr td').nth(6)).to_have_text('123')
     screen.reload()
     expect(screen.locator('#rawTableBody')).to_contain_text('1.6*1430')
     expect(screen.locator('#connectionStatus')).to_have_text('数据已同步')
@@ -131,7 +131,7 @@ def test_quick_maintenance_and_resume_from_editor(ui_context, live_server, clock
     clock['now'] += timedelta(minutes=10)
     editor.get_by_role('button', name='恢复运行', exact=True).click()
     expect(screen.locator('.line-card[data-line-id="4"]')).to_have_attribute('data-state', 'running')
-    expect(screen.locator('.line-card[data-line-id="4"]')).to_contain_text('98.6%')
+    expect(screen.locator('.line-card[data-line-id="4"]')).to_contain_text('99.3%')
 
 
 def test_validation_failure_keeps_draft_and_does_not_publish(ui_context, live_server):
@@ -266,7 +266,7 @@ def test_manual_stop_time_entry_drives_runtime(ui_context, live_server):
     fill_control(editor, 'stop-end-0', '2026-11-21 10:00')
     editor.locator('input#stop-end-0').press('Enter')
     editor.get_by_test_id('save-button').click()
-    expect(screen.locator('.line-card[data-line-id="1"]')).to_contain_text('91.7%')
+    expect(screen.locator('.line-card[data-line-id="1"]')).to_contain_text('95.8%')
     expect(screen.locator('.line-card[data-line-id="1"]')).to_have_attribute('data-state', 'running')
 
 
@@ -425,7 +425,11 @@ def test_demo_screen_full_data_alignment_and_overflow(ui_context, live_server, a
     expect(page.locator('#semiTableBody tr')).to_have_count(10)
     expect(page.locator('#shippedQty')).to_have_text('37,400')
     expect(page.locator('#trendLegend > span')).to_have_count(3)
-    expect(page.locator('#rawTableBody tr').first.locator('td')).to_have_count(8)
+    expect(page.locator('#rawTableBody tr').first.locator('td')).to_have_count(7)
+    expect(page.locator('#rawTableHeader')).not_to_contain_text('仓库')
+    expect(page.locator('#rawTableHeader')).to_contain_text('库存 / 卷')
+    expect(page.locator('#semiTableHeader')).to_contain_text('库存 / 个')
+    assert page.locator('#rawTableBody .inventory-unit, #semiTableBody .inventory-unit').count() == 0
     page.wait_for_function('document.documentElement.scrollWidth<=innerWidth')
     table_sizes = page.locator('.material-table-wrap').evaluate_all('(elements)=>elements.map(e=>({width:e.clientWidth,scrollWidth:e.scrollWidth,height:e.clientHeight,scrollHeight:e.scrollHeight}))')
     assert all(item['scrollWidth'] <= item['width'] + 1 for item in table_sizes), table_sizes

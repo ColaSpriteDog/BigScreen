@@ -30,6 +30,14 @@ body { margin: 0; background: var(--editor-bg); color: var(--editor-ink); font: 
 [v-cloak] { display: none !important; }
 .account-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--editor-muted); }
 .current-account { font-size: 12px; color: var(--editor-muted); }
+.record-audit { display: inline-block; max-width: 100%; color: var(--editor-muted); font-size: 12px; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.record-audit[tabindex] { cursor: help; }
+.record-audit:focus-visible { outline: 2px solid var(--editor-primary); outline-offset: 2px; }
+.audit-details { line-height: 1.8; overflow-wrap: anywhere; max-width: min(360px, 80vw); }
+.section-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; min-width: 0; }
+.order-attribution { margin-top: 8px; }
+.process-attribution { flex: 1 0 100%; text-align: right; }
+.process-setting { flex-wrap: wrap; }
 #panel-employees .el-switch { --el-switch-off-color: var(--editor-muted); }
 .relogin-link { color: var(--editor-primary); white-space: nowrap; padding: 10px 0; }
 @media (max-width: 600px) { .account-name { display: none; } }
@@ -203,6 +211,9 @@ h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spac
   .savebar-actions svg { margin-right: 7px; width: 16px; height: 16px; }
 }
 @media (max-width: 520px) {
+  .editor-header { flex-wrap: wrap; }
+  .editor-header h1 { flex-shrink: 0; }
+  .editor-header .header-actions { margin-left: auto; }
   .sales-summary { grid-template-columns: 1fr 1fr; }
   .sales-summary > .editor-card:first-child { grid-column: 1 / -1; }
   .toolbar-actions { width: 100%; gap: 10px; }

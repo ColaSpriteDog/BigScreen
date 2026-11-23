@@ -96,12 +96,13 @@ def ratio(numerator, denominator):
     return round(numerator / denominator * 100, 2)
 
 
-def line_runtime(now, zone, downtimes):
-    """计算产线状态与今日运行率；now 为当前时间，zone 为业务时区，downtimes 为停机记录；返回统计字典。"""
+def line_runtime(now, zone, downtimes, planned_hours=24, day=None):
+    """计算状态及运行率；now/zone 为时钟时区，downtimes 为停机，planned_hours 为计划小时，day 可指定日期；返回统计字典。"""
     now = now.astimezone(UTC)
-    local_day = now.astimezone(ZoneInfo(zone)).date().isoformat()
-    beginning, _ = day_bounds(local_day, zone)
-    elapsed = max((now - beginning).total_seconds(), 0)
+    local_day = day or now.astimezone(ZoneInfo(zone)).date().isoformat()
+    beginning, ending = day_bounds(local_day, zone)
+    cutoff = min(now, ending)
+    planned_seconds = number(planned_hours, "计划生产时长", maximum=24) * 3600
     spans = []
     active = []
     for item in downtimes:
@@ -109,7 +110,7 @@ def line_runtime(now, zone, downtimes):
         finish = parse_datetime(item["end_at"]) if item.get("end_at") else now
         if start <= now and (not item.get("end_at") or now < finish):
             active.append(item)
-        left, right = max(start, beginning), min(finish, now)
+        left, right = max(start, beginning), min(finish, cutoff)
         if right > left:
             spans.append((left, right))
     spans.sort()
@@ -126,7 +127,7 @@ def line_runtime(now, zone, downtimes):
     return {
         "status": state,
         "status_label": STATUS_LABELS[state],
-        "runtime_rate": round((elapsed - stopped) / elapsed * 100, 2) if elapsed else None,
+        "runtime_rate": round(max(planned_seconds - stopped, 0) / planned_seconds * 100, 2) if planned_seconds else None,
         "downtime_minutes": round(stopped / 60, 2),
         "active_downtime_id": active[0].get("id") if active else None,
         "open_downtime_id": next((item.get("id") for item in active if not item.get("end_at")), None),
