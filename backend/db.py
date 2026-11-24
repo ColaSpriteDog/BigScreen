@@ -66,6 +66,11 @@ def initialize_database(path, zone, timestamp):
     with connect_database(destination) as connection:
         connection.execute("PRAGMA journal_mode = WAL")
         connection.executescript(Path(__file__).with_name("schema.sql").read_text(encoding="utf-8"))
+        # 理论产能必须由设备或工艺确认，旧库升级时保留空值，不从生产目标推算。
+        line_columns = {row["name"] for row in connection.execute("PRAGMA table_info(production_line)")}
+        if "theoretical_max_per_hour" not in line_columns:
+            connection.execute("ALTER TABLE production_line ADD COLUMN theoretical_max_per_hour REAL "
+                               "CHECK (theoretical_max_per_hour IS NULL OR theoretical_max_per_hour > 0)")
         daily_columns = {row["name"] for row in connection.execute("PRAGMA table_info(production_daily)")}
         if "planned_hours" not in daily_columns:
             connection.execute("ALTER TABLE production_daily ADD COLUMN planned_hours REAL NOT NULL DEFAULT 24 "

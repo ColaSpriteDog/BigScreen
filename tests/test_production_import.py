@@ -115,7 +115,7 @@ def test_import_is_idempotent_preserves_unrelated_fields_and_uses_units(client):
     assert client.post('/api/production/2026-11/import', json=data).status_code == 200
     saved = client.get('/api/editor?date=2026-11-01').get_json()['production']
     assert saved['lines'][0]['actual_qty'] == 100.125
-    assert saved['lines'][0]['planned_hours'] == 20 and saved['overview']['oee_percent'] == 9.9
+    assert saved['lines'][0]['planned_hours'] == 20 and saved['overview']['oee_percent'] is None
     assert saved['overview']['actual_qty'] == 200
     repeat = preview(client).get_json()
     assert not any(item['conflict'] for item in repeat['items'])

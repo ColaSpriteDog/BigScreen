@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS production_line (
     code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     standard_qty REAL CHECK (standard_qty IS NULL OR standard_qty >= 0),
+    theoretical_max_per_hour REAL CHECK (theoretical_max_per_hour IS NULL OR theoretical_max_per_hour > 0),
     process_id INTEGER NOT NULL REFERENCES process_node(id),
     show_in_trend INTEGER NOT NULL CHECK (show_in_trend IN (0, 1)),
     sort_order INTEGER NOT NULL
@@ -128,4 +129,4 @@ CREATE TABLE IF NOT EXISTS record_attribution (
     PRIMARY KEY (record_type, record_key)
 );
 
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;

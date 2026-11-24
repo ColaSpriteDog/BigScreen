@@ -13,7 +13,7 @@ TABLES = {
     "sales_month": (("month",), ("order_qty",)),
     "shipment_month_item": (("id",), ("month", "part_no", "quantity", "name", "shipment_date")),
     "screen_settings": (("id",), ("timezone", "safety_start_date")),
-    "production_line": (("id",), ("name", "standard_qty", "show_in_trend")),
+    "production_line": (("id",), ("name", "standard_qty", "show_in_trend", "theoretical_max_per_hour")),
     "process_node": (("id",), ("manual_status",)),
     "employee": (("id",), ("username", "name", "password", "enabled")),
 }

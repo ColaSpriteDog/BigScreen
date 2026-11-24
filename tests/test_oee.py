@@ -1,12 +1,24 @@
 """验证源表工时、异常停机校验及 A/B 拼焊 OEE，所有写入使用隔离数据库。"""
 
+from datetime import timedelta
+
 import pytest
 from playwright.sync_api import expect
 
 from backend import create_app
 from backend.db import connect_database
-from tests.test_api import production_payload
+from tests.test_api import production_payload, settings_payload
 from tests.test_production_import import production_workbook, preview
+
+
+def configure_capacity(client, capacity=50):
+    """配置两条拼焊线理论产能；client 为隔离客户端、capacity 为件/小时或空值；返回保存响应。"""
+    payload = settings_payload(client)
+    for line in payload['lines'][2:]:
+        line['theoretical_max_per_hour'] = capacity
+    response = client.put('/api/settings', json=payload)
+    assert response.status_code == 200, response.get_json()
+    return response
 
 
 def import_oee(client):
@@ -18,6 +30,7 @@ def import_oee(client):
             sheet['C25'] = 800
             sheet['C26'] = 40
             sheet['C28'] = 4
+    configure_capacity(client)
     draft = preview(client, production_workbook(change)).get_json()
     assert client.post('/api/production/2026-11/import', json=draft).status_code == 200
     return client.get('/api/dashboard').get_json()
@@ -25,7 +38,7 @@ def import_oee(client):
 
 def test_oee_uses_source_hours_and_ideal_cycle(client):
     """验证三因素；client 为客户端；断言开动率八成、性能百分百、品质九成五得到七成六。"""
-    # 每条线工时20、异常停机4、实际800、标准1000、报废40：0.8×1×0.95=76%。
+    # 每条线工时20、异常停机4、实际800、理论每小时50件、报废40：0.8×1×0.95=76%。
     dashboard = import_oee(client)
     assert dashboard['overview']['oee_percent'] == 76
     assert dashboard['overview']['average_output'] == 40
@@ -33,7 +46,7 @@ def test_oee_uses_source_hours_and_ideal_cycle(client):
     assert draft['lines'][2]['planned_hours'] == 20
     assert draft['lines'][2]['abnormal_hours'] == 4
     assert draft['lines'][2]['ideal_cycle_hours'] == 0.02
-    # 不重复扣除停机；理想节拍在补录日报工时后保持原导入值。
+    # 不重复扣除停机；理论小时产能不随日报计划工时变动。
     draft['lines'][2]['planned_hours'] = 10
     assert client.put('/api/production/2026-11-01', json=draft).status_code == 200
     assert client.get('/api/dashboard').get_json()['overview']['oee_percent'] == 101.33
@@ -56,6 +69,7 @@ def test_blank_source_stops_count_as_zero(client, stops, expected):
         for name in ('激光焊接', '激光焊接 (B)'):
             for row, value in zip((28, 33, 41, 45), stops):
                 book[name].cell(row, 3).value = value
+    configure_capacity(client)
     response = preview(client, production_workbook(change))
     assert response.status_code == 200, response.get_json()
     data = response.get_json()
@@ -81,6 +95,7 @@ def test_source_timing_errors_warn_without_inventing_oee(client, kind):
         elif kind == 'invalid_cell': sheet['C28'] = '#DIV/0!'
         elif kind == 'invalid_text': sheet['C28'] = '待核实'
         else: sheet['C36'] = None
+    configure_capacity(client)
     data = preview(client, production_workbook(change)).get_json()
     item = next(item for item in data['items'] if item['line_id'] == 3)
     assert item['warnings']
@@ -117,6 +132,119 @@ def test_legacy_oee_columns_keep_business_data(client, app):
         db.execute('ALTER TABLE production_daily DROP COLUMN ideal_cycle_hours')
     restarted = create_app(dict(app.config)).test_client()
     assert restarted.get('/api/dashboard').get_json() == before
+
+
+def test_capacity_recalculates_history_and_ignores_daily_target_and_client_cycle(client, app):
+    """验证理论产能独立；client/app 为隔离环境；断言配置重算历史且目标、日报及导入节拍不影响 OEE。"""
+    import_oee(client)
+    with connect_database(app.config['DATABASE']) as db:
+        daily_before = [tuple(row) for row in db.execute('SELECT * FROM production_daily ORDER BY work_date,line_id')]
+    configure_capacity(client, 100)
+    assert client.get('/api/dashboard').get_json()['overview']['oee_percent'] == 38
+    payload = settings_payload(client)
+    payload['lines'][2]['standard_qty'] = 99999
+    payload['lines'][3]['standard_qty'] = 88888
+    assert client.put('/api/settings', json=payload).status_code == 200
+    assert client.get('/api/dashboard').get_json()['overview']['oee_percent'] == 38
+    with connect_database(app.config['DATABASE']) as db:
+        assert [tuple(row) for row in db.execute('SELECT * FROM production_daily ORDER BY work_date,line_id')] == daily_before
+    data = preview(client).get_json()
+    for item in data['items']:
+        item['ideal_cycle_hours'] = 999
+    data['overwrite'] = True
+    assert client.post('/api/production/2026-11/import', json=data).status_code == 200
+    assert client.get('/api/dashboard').get_json()['overview']['oee_percent'] == 4.95
+    configure_capacity(client, None)
+    assert client.get('/api/dashboard').get_json()['overview']['oee_percent'] is None
+
+
+@pytest.mark.parametrize('capacity', [0, -1, True, '50', 1e13])
+def test_invalid_capacity_rolls_back_settings_and_attribution(client, capacity):
+    """验证非法产能原子回滚；client 为隔离客户端、capacity 为非法值；断言设置、版本及人员信息保持原样。"""
+    import_oee(client)
+    before = client.get('/api/editor').get_json()
+    payload = settings_payload(client)
+    payload['lines'][0]['name'] = '回滚测试'
+    payload['lines'][3]['theoretical_max_per_hour'] = capacity
+    assert client.put('/api/settings', json=payload).status_code == 400
+    assert client.get('/api/editor').get_json() == before
+
+
+def test_different_capacities_use_good_ideal_hours_and_missing_line_is_incomplete(client):
+    """验证两线不同节拍；client 为隔离客户端；断言按合格品理想工时加权且任一产能缺失返回空值。"""
+    import_oee(client)
+    payload = settings_payload(client)
+    payload['lines'][3]['theoretical_max_per_hour'] = 100
+    assert client.put('/api/settings', json=payload).status_code == 200
+    assert client.get('/api/dashboard').get_json()['overview']['oee_percent'] == 57
+    payload = settings_payload(client)
+    payload['lines'][3]['theoretical_max_per_hour'] = None
+    assert client.put('/api/settings', json=payload).status_code == 200
+    assert client.get('/api/dashboard').get_json()['overview']['oee_percent'] is None
+
+
+def test_capacity_updates_only_changed_configuration_attribution(client, clock):
+    """验证产能修改归属；client/clock 为隔离客户端和时钟；断言仅变化的产线配置更新人员时间。"""
+    import_oee(client)
+    before = client.get('/api/editor?date=2026-11-01').get_json()['production']['lines']
+    clock['now'] += timedelta(minutes=1)
+    payload = settings_payload(client)
+    payload['lines'][2]['theoretical_max_per_hour'] = 60
+    assert client.put('/api/settings', json=payload).status_code == 200
+    after = client.get('/api/editor?date=2026-11-01').get_json()['production']['lines']
+    assert after[2]['_configuration_audit']['modified_at'] != before[2]['_configuration_audit']['modified_at']
+    assert after[3]['_configuration_audit'] == before[3]['_configuration_audit']
+    assert [line['_audit'] for line in after] == [line['_audit'] for line in before]
+
+
+def test_capacity_migration_preserves_legacy_rows_and_old_settings_clients(client, app):
+    """验证旧库迁移与旧客户端；client/app 为隔离环境；断言不推算产能、不改日报且省略新字段保留原值。"""
+    import_oee(client)
+    with connect_database(app.config['DATABASE']) as db:
+        daily = [tuple(row) for row in db.execute('SELECT * FROM production_daily ORDER BY work_date,line_id')]
+        attribution = [tuple(row) for row in db.execute('SELECT * FROM record_attribution ORDER BY record_type,record_key')]
+        version = db.execute('SELECT version FROM screen_settings').fetchone()[0]
+        db.execute('ALTER TABLE production_line DROP COLUMN theoretical_max_per_hour')
+    restarted = create_app(dict(app.config)).test_client()
+    assert restarted.post('/api/auth/login', json={'username': 'admin', 'password': 'admin123'}).status_code == 200
+    assert restarted.get('/api/dashboard').get_json()['overview']['oee_percent'] is None
+    with connect_database(app.config['DATABASE']) as db:
+        assert all(row[0] is None for row in db.execute('SELECT theoretical_max_per_hour FROM production_line'))
+        assert [tuple(row) for row in db.execute('SELECT * FROM production_daily ORDER BY work_date,line_id')] == daily
+        assert [tuple(row) for row in db.execute('SELECT * FROM record_attribution ORDER BY record_type,record_key')] == attribution
+        assert db.execute('SELECT version FROM screen_settings').fetchone()[0] == version
+    configure_capacity(restarted, 50.5)
+    payload = settings_payload(restarted)
+    for line in payload['lines']:
+        line.pop('theoretical_max_per_hour')
+    assert restarted.put('/api/settings', json=payload).status_code == 200
+    assert restarted.get('/api/editor').get_json()['production']['lines'][2]['theoretical_max_per_hour'] == 50.5
+
+
+def test_browser_capacity_setting_persists_and_updates_oee(ui_context, live_server, client):
+    """验证后台配置闭环；参数为浏览器上下文、服务和客户端；断言保存持久化、草稿计算和大屏同步。"""
+    import_oee(client)
+    editor = ui_context.new_page()
+    editor.goto(live_server + '/edit')
+    editor.get_by_role('tab', name='流程与设置', exact=True).click()
+    for identifier in (3, 4):
+        control = editor.get_by_test_id(f'theoretical-max-{identifier}').locator('input')
+        control.fill('100')
+        control.press('Tab')
+    editor.get_by_test_id('save-button').click()
+    expect(editor.get_by_test_id('save-status')).to_have_text('所有修改已保存')
+    editor.reload()
+    editor.get_by_role('tab', name='流程与设置', exact=True).click()
+    expect(editor.get_by_test_id('theoretical-max-3').locator('input')).to_have_value('100.000')
+    assert editor.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+    editor.screenshot(path='output/playwright/settings-theoretical-capacity.png', full_page=True)
+    screen = ui_context.new_page()
+    screen.goto(live_server + '/screen')
+    expect(screen.locator('#oeePercent')).to_have_text('38%')
+    editor.get_by_role('tab', name='生产日报', exact=True).click()
+    editor.get_by_role('combobox', name='日报日期', exact=True).fill('2026-11-01')
+    editor.get_by_role('combobox', name='日报日期', exact=True).press('Enter')
+    expect(editor.get_by_test_id('overview-oee')).to_have_text('38%')
 
 
 def test_browser_oee_is_derived_and_preview_shows_hours(ui_context, live_server, client):

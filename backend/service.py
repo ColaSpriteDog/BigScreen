@@ -101,7 +101,7 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True):
                     defect_qty=output.get(line["id"], {}).get("defect_qty"),
                     planned_hours=output.get(line["id"], {}).get("planned_hours", 24),
                     abnormal_hours=output.get(line["id"], {}).get("abnormal_hours"),
-                    ideal_cycle_hours=output.get(line["id"], {}).get("ideal_cycle_hours"))
+                    ideal_cycle_hours=1 / line["theoretical_max_per_hour"] if line["theoretical_max_per_hour"] else None)
         runtime = line_runtime(now, zone, [item for item in current_stops if item["line_id"] == line["id"]], line["planned_hours"])
         if day != today:
             selected_runtime = line_runtime(now, zone, [item for item in selected_stops if item["line_id"] == line["id"]], line["planned_hours"], day)
@@ -137,7 +137,7 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True):
             line["_configuration_audit"] = line.pop("_audit")
             source = {"work_date": day, "line_id": line["id"], "actual_qty": line["actual_qty"], "defect_qty": line["defect_qty"],
                       "planned_hours": line["planned_hours"], "abnormal_hours": line["abnormal_hours"],
-                      "ideal_cycle_hours": line["ideal_cycle_hours"]}
+                      "ideal_cycle_hours": output.get(line["id"], {}).get("ideal_cycle_hours")}
             audit.attach([source], "production_daily", lookup, line["id"] in output)
             line["_audit"] = source["_audit"]
         audit.attach([result["production"]["overview"]], "daily_overview", lookup, bool(overview))
@@ -169,11 +169,11 @@ def production_totals(db, first_day, last_day):
         "SELECT SUM(d.actual_qty) AS actual_qty,"
         "COUNT(*) AS reported_count,"
         "SUM(CASE WHEN d.planned_hours>0 AND d.abnormal_hours IS NOT NULL "
-        "AND d.abnormal_hours<=d.planned_hours AND d.ideal_cycle_hours>0 "
+        "AND d.abnormal_hours<=d.planned_hours AND l.theoretical_max_per_hour>0 "
         "AND (d.actual_qty=0 OR d.abnormal_hours<d.planned_hours) "
         "AND (d.defect_qty IS NOT NULL OR d.actual_qty=0) THEN 1 ELSE 0 END) AS oee_count,"
         "SUM(d.planned_hours) AS oee_planned_hours,SUM(d.planned_hours-d.abnormal_hours) AS oee_run_hours,"
-        "SUM((d.actual_qty-COALESCE(d.defect_qty,0))*d.ideal_cycle_hours) AS good_hours,"
+        "SUM((d.actual_qty-COALESCE(d.defect_qty,0))/l.theoretical_max_per_hour) AS good_hours,"
         "ROUND(SUM(d.actual_qty)/NULLIF(SUM(d.planned_hours),0),2) AS average_output,"
         "CASE WHEN COUNT(*)=COUNT(l.standard_qty) THEN SUM(l.standard_qty) END AS planned_qty,"
         "CASE WHEN SUM(CASE WHEN d.actual_qty>0 AND d.defect_qty IS NULL THEN 1 ELSE 0 END)=0 "
@@ -185,7 +185,7 @@ def production_totals(db, first_day, last_day):
     totals["completion_rate"] = ratio(totals["actual_qty"], totals["planned_qty"])
     # 有产量但缺少报废量时不推断合格品；零产量没有待判定产品，整月零产量的比率仍为空。
     totals["quality_percent"] = ratio(totals.pop("good_qty"), totals["actual_qty"])
-    # 将不同标准节拍的产量折算成理想工时，按全月计划工时加权；不对每日 OEE 取算术平均。
+    # 按当前配置的理论小时产能折算合格品理想工时；配置修改后重算历史，不使用日产目标推算节拍。
     complete = totals.pop("reported_count") == totals.pop("oee_count")
     planned, runtime = totals.pop("oee_planned_hours"), totals.pop("oee_run_hours")
     good = totals.pop("good_hours")
@@ -315,7 +315,7 @@ def save_production(db, payload, day, now):
             raise ValidationError("不良数量不能大于实际产量，且必须先填写实际产量")
         abnormal = number(item.get("abnormal_hours", previous[item["id"]]["abnormal_hours"] if item["id"] in previous else None),
                           "异常停机工时", optional=True, maximum=planned_hours)
-        # 理想节拍来自导入的标准产能和原始工时，不接受客户端修改或因补录工时而漂移。
+        # 旧版导入节拍只保留原始记录；当前 OEE 从产线理论小时产能计算，不接受日报改写基准。
         cycle = previous[item["id"]]["ideal_cycle_hours"] if item["id"] in previous else None
         db.execute("INSERT INTO production_daily(line_id,work_date,actual_qty,defect_qty,planned_hours,abnormal_hours,ideal_cycle_hours) "
                    "VALUES(?,?,?,?,?,?,?) "
@@ -469,15 +469,13 @@ def save_production_import(db, payload, month, now):
         hours = number(item.get("planned_hours", previous["planned_hours"] if previous else 24), "计划生产工时", maximum=24)
         abnormal = number(item.get("abnormal_hours", previous["abnormal_hours"] if previous else None),
                           "异常停机工时", optional=True, maximum=hours)
-        cycle = number(item.get("ideal_cycle_hours", previous["ideal_cycle_hours"] if previous else None), "理想单件工时", optional=True)
-        if cycle == 0:
-            raise ValidationError("理想单件工时必须大于零")
+        # 历史导入节拍仅留档，OEE 统一使用产线配置的理论小时产能，忽略客户端节拍。
+        cycle = previous["ideal_cycle_hours"] if previous else None
         # 未填写报废时保留已有值；只有用户勾选覆盖才接受改变已录入数量。
         if previous is not None:
             if not overwrite and any(new is not None and previous[field] is not None and new != previous[field]
                                      for field, new in (("actual_qty", actual), ("defect_qty", defects),
-                                                        ("planned_hours", hours), ("abnormal_hours", abnormal),
-                                                        ("ideal_cycle_hours", cycle))):
+                                                        ("planned_hours", hours), ("abnormal_hours", abnormal))):
                 raise ValidationError(f"{day} 产线 {identifier:02d} 已有不同数据，请核对预览并勾选覆盖")
             if defects is None:
                 defects = previous["defect_qty"]
@@ -516,11 +514,17 @@ def save_settings(db, payload, now):
         visibility[line["id"]] = int(value)
     if not any(visibility.values()):
         raise ValidationError("趋势图至少选择一条产线")
+    capacities = {row["id"]: row["theoretical_max_per_hour"] for row in
+                  rows(db, "SELECT id,theoretical_max_per_hour FROM production_line")}
     for line in lines:
         name = text(line.get("name"), "产线名称", maximum=20)
         standard = number(line.get("standard_qty"), "标准日产量", integer=line["id"] != 1, optional=True)
-        db.execute("UPDATE production_line SET name=?,standard_qty=?,show_in_trend=? WHERE id=?",
-                   (name, standard, visibility[line["id"]], line["id"]))
+        # 小时产能支持小数；空白表示未配置，旧客户端未提交时保留原值。
+        capacity = number(line.get("theoretical_max_per_hour", capacities[line["id"]]), "设备理论最大产量", optional=True)
+        if capacity == 0:
+            raise ValidationError("设备理论最大产量必须大于零，未配置请留空")
+        db.execute("UPDATE production_line SET name=?,standard_qty=?,show_in_trend=?,theoretical_max_per_hour=? WHERE id=?",
+                   (name, standard, visibility[line["id"]], capacity, line["id"]))
     nodes = array_value(payload.get("processes"), "独立工序配置", 5)
     for node in nodes:
         node["id"] = number(node.get("id"), "工序ID", integer=True)

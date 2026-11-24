@@ -236,7 +236,7 @@ def create_app(configuration=None):
                 item["previous_hours"] = previous["planned_hours"] if previous is not None else None
                 item["previous_abnormal"] = previous["abnormal_hours"] if previous is not None else None
                 item["conflict"] = previous is not None and any(item.get(field) is not None and previous[field] is not None
-                    and item[field] != previous[field] for field in ("actual_qty", "defect_qty", "planned_hours", "abnormal_hours", "ideal_cycle_hours"))
+                    and item[field] != previous[field] for field in ("actual_qty", "defect_qty", "planned_hours", "abnormal_hours"))
                 item["future"] = item["date"] > today
             for item in result["standards"]:
                 item["name"] = lines[item["line_id"]]

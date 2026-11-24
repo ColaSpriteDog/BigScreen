@@ -42,8 +42,8 @@ def displayed_hours(value, number_format):
     return float(Decimal(str(value)).quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP))
 
 
-def parse_daily_hours(data, day, identifier, sheet, formula_cells, standard_qty, number_formats=None):
-    """提取日工时；参数含源行、日序、产线、公式、日标准及数字格式；返回按显示值合计的工时、节拍和警告。"""
+def parse_daily_hours(data, day, identifier, sheet, formula_cells, number_formats=None):
+    """提取日工时；参数含源行、日序、产线、公式及数字格式；返回按显示值合计的工时和警告。"""
     column = day + 1
     warnings = []
 
@@ -92,11 +92,10 @@ def parse_daily_hours(data, day, identifier, sheet, formula_cells, standard_qty,
             abnormal = float(sum(Decimal(str(value)) for value in stops))
     except ValidationError as error:
         warnings.append(str(error))
-    result = {"warnings": warnings, "abnormal_hours": abnormal, "ideal_cycle_hours": None}
+    # 标准日产量是生产目标，不能据此推算设备最快节拍；理论产能由后台独立配置。
+    result = {"warnings": warnings, "abnormal_hours": abnormal}
     if planned is not None and 0 <= planned <= 24:
         result["planned_hours"] = planned
-        if planned > 0 and standard_qty > 0:
-            result["ideal_cycle_hours"] = planned / standard_qty
     return result
 
 
@@ -137,7 +136,7 @@ def parse_production_rows(rows, month, layout, formula_cells=None, number_format
             continue
         if defects is not None and defects > actual:
             raise ValidationError(f"“{sheet}”第 {day} 日报废数量大于实际产量")
-        timing = parse_daily_hours(data, day, identifier, sheet, formula_cells or {}, standards[-1], number_formats)
+        timing = parse_daily_hours(data, day, identifier, sheet, formula_cells or {}, number_formats)
         items.append({"date": f"{month}-{day:02d}", "line_id": identifier, "unit": unit,
                       "actual_qty": actual, "defect_qty": defects, "sheet": sheet, **timing})
     if len(set(standards)) != 1:

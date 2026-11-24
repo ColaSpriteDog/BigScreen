@@ -167,9 +167,11 @@ h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spac
 .settings-form .el-input__wrapper, .settings-form .el-select__wrapper { min-height: 40px; }
 [data-testid='line-settings-table'] .el-table__body .el-table__cell { padding: 12px 0; }
 /* 产量列为单位预留空间，并统一输入框高度，避免单位换行和同行控件错位。 */
-[data-testid='line-settings-table'] .el-table__body td:nth-child(3) .cell { display: flex; align-items: center; gap: 8px; }
-[data-testid='line-settings-table'] .el-table__body td:nth-child(3) .el-input-number { flex: 1; width: 0; height: 36px; line-height: 36px; --el-input-height: 36px; }
-[data-testid='line-settings-table'] .el-table__body td:nth-child(3) .cell > span { flex: none; color: var(--editor-muted); font-size: 12px; white-space: nowrap; }
+/* 日目标与理论小时产能均将单位放在输入框旁，保持配置表行高一致。 */
+/* 通过产量列的明确类名绑定布局，调整列顺序时仍保持输入框与单位同行。 */
+[data-testid='line-settings-table'] .capacity-unit-cell .cell { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+[data-testid='line-settings-table'] .capacity-unit-cell .el-input-number { flex: 1 1 0; min-width: 0; width: 0; height: 36px; line-height: 36px; --el-input-height: 36px; }
+[data-testid='line-settings-table'] .capacity-unit-cell .cell > span { flex: none; color: var(--editor-muted); font-size: 12px; white-space: nowrap; }
 .process-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .process-setting { display: flex; align-items: center; gap: 18px; padding: 15px; }
 .process-setting img { flex: 0 0 90px; width: 90px; height: 75px; object-fit: contain; border-radius: 4px; background: #10252f; }
