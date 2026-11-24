@@ -28,7 +28,7 @@
 html { scroll-padding-block: 20px calc(var(--editor-savebar-height) + 20px); }
 body { margin: 0; background: var(--editor-bg); color: var(--editor-ink); font: 13px/1.5 'Microsoft YaHei', sans-serif; }
 [v-cloak] { display: none !important; }
-.account-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--editor-muted); }
+.account-name { min-width: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .current-account { font-size: 12px; color: var(--editor-muted); }
 .record-audit { display: inline-block; max-width: 100%; color: var(--editor-muted); font-size: 12px; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .record-audit[tabindex] { cursor: help; }
@@ -38,6 +38,8 @@ body { margin: 0; background: var(--editor-bg); color: var(--editor-ink); font: 
 .order-attribution { margin-top: 8px; }
 /* 导入沿用现有工具栏与表格，预览弹窗在小屏中保留内部滚动。 */
 .inventory-import-toolbar { display: flex; justify-content: flex-end; padding-top: 16px; }
+/* 月份框与导入按钮统一为 40px，保持上下边缘及内容居中对齐。 */
+.inventory-import-toolbar .el-date-editor { --el-input-height: 40px; height: 40px; }
 /* 生产导入月份与操作按钮并排，窄屏允许换行，沿用现有工具栏层级。 */
 .production-import-toolbar { gap: 10px; flex-wrap: wrap; padding: 0 0 16px; }
 .production-import-toolbar .el-date-editor { width: 150px; flex: none; }
@@ -53,7 +55,6 @@ body { margin: 0; background: var(--editor-bg); color: var(--editor-ink); font: 
 .process-setting { flex-wrap: wrap; }
 #panel-employees .el-switch { --el-switch-off-color: var(--editor-muted); }
 .relogin-link { color: var(--editor-primary); white-space: nowrap; padding: 10px 0; }
-@media (max-width: 600px) { .account-name { display: none; } }
 #bootStatus { padding: 50px; color: var(--editor-muted); }
 button, a, input { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--editor-primary); outline-offset: 3px; }
@@ -73,11 +74,32 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--editor-primary)
 .editor-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 88px; padding: 24px 24px 18px 32px; }
 h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spacing: -.5px; }
 .header-actions, .period-controls, .toolbar-actions, .heading-with-total, .savebar-actions { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.header-actions { gap: 16px; }
-.saved-label { display: flex; align-items: center; gap: 8px; color: var(--editor-muted); font-size: 12px; white-space: nowrap; }
+/* 保存与刷新归为一组，账号区域用分隔线建立层级，避免四项操作均匀散开。 */
+.header-actions { flex-shrink: 0; gap: 16px; }
+.header-sync, .header-account { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.header-account { position: relative; padding-left: 16px; }
+.header-account::before { content: ''; position: absolute; left: 0; top: 50%; width: 1px; height: 20px; background: var(--editor-border); transform: translateY(-50%); }
+.saved-label { display: flex; align-items: center; gap: 7px; color: var(--editor-muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .saved-label::before, .save-status::before { content: ''; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--editor-primary); }
-.reload-button.el-button { width: 40px; height: 40px; padding: 10px; color: var(--editor-muted); border-color: transparent; background: transparent; }
-.reload-button svg { width: 22px; height: 22px; }
+.reload-button.el-button { width: 32px; height: 32px; min-height: 32px; padding: 7px; border-radius: 6px; color: var(--editor-muted); border-color: transparent; background: transparent; }
+.reload-button svg { width: 18px; height: 18px; }
+/* 头像、姓名与箭头构成单一入口，菜单右侧对齐并保留键盘操作。 */
+.account-menu-trigger { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 3px 7px 3px 3px; border: 0; border-radius: 6px; background: transparent; color: var(--editor-ink); font: inherit; cursor: pointer; transition: background-color 180ms; }
+.account-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 28px; border-radius: 50%; background: #dcece8; color: var(--editor-primary); font-size: 12px; font-weight: 600; }
+.account-chevron { flex: none; width: 14px; height: 14px; color: var(--editor-muted); transition: transform 180ms; }
+.account-menu-trigger[aria-expanded='true'] .account-chevron { transform: rotate(180deg); }
+.account-menu-trigger:not(:disabled):hover, .account-menu-trigger[aria-expanded='true'] { background: #e3ecee; }
+.account-menu-trigger:not(:disabled):active { background: var(--editor-border); }
+.account-menu-trigger:disabled { opacity: .45; cursor: not-allowed; }
+.account-menu-popper.el-popper { min-width: 140px; border: 1px solid var(--editor-border); border-radius: 6px; box-shadow: 0 6px 20px rgb(23 48 62 / 10%); }
+.account-menu-popper .el-dropdown-menu { padding: 5px; border-radius: inherit; }
+.account-menu-popper .el-dropdown-menu__item { min-height: 36px; padding: 0 12px; border-radius: 3px; color: var(--editor-ink); font-size: 13px; }
+.account-menu-popper .el-dropdown-menu__item:not(.is-disabled):hover, .account-menu-popper .el-dropdown-menu__item:not(.is-disabled):focus { color: #a6414e; background: #fff0f3; }
+.header-actions .el-button { transition: background-color 180ms, color 180ms, border-color 180ms; }
+.reload-button.el-button:not(:disabled):hover { color: var(--editor-primary); background: var(--editor-tint); }
+.header-actions .el-button:not(:disabled):active { background: var(--editor-border); }
+.header-actions .el-button:focus-visible { outline: 2px solid var(--editor-primary); outline-offset: 2px; }
+.header-actions .el-button:disabled { color: var(--editor-muted); opacity: .45; cursor: not-allowed; }
 .editor-main { min-width: 0; padding: 0 24px calc(var(--editor-savebar-height) + 38px) 32px; }
 .editor-fields { min-width: 0; padding: 0; margin: 0; border: 0; }
 [role='tabpanel'] { min-width: 0; }
@@ -190,7 +212,6 @@ h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spac
 .savebar-actions svg { width: 18px; height: 18px; margin-right: 14px; }
 .editor-fields:disabled { opacity: .7; }
 @media (max-width: 1150px) {
-  .header-actions { gap: 24px; }
   .editor-header { padding-left: 24px; }
   .editor-main { padding-left: 24px; }
   .metric-form { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
@@ -211,7 +232,6 @@ h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spac
   h1 { font-size: 24px; }
   .header-actions { gap: 8px; }
   .saved-label { font-size: 11px; gap: 5px; }
-  .reload-button.el-button { width: 36px; padding: 7px; }
   .editor-main { padding: 0 12px calc(var(--editor-savebar-height) + 26px); }
   .period-controls { gap: 6px; }
   .period-controls .el-date-editor { width: 148px; }
@@ -237,7 +257,12 @@ h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spac
 @media (max-width: 520px) {
   .editor-header { flex-wrap: wrap; }
   .editor-header h1 { flex-shrink: 0; }
-  .editor-header .header-actions { margin-left: auto; }
+  /* 窄屏将操作区单独成行，完整保留保存时间、姓名和退出入口。 */
+  .editor-header .header-actions { flex: 1 0 100%; justify-content: space-between; }
+  .header-sync, .header-account { gap: 6px; }
+  .header-account { padding-left: 10px; }
+  .account-menu-trigger { gap: 6px; }
+  .account-name { max-width: 64px; }
   .sales-summary { grid-template-columns: 1fr 1fr; }
   .sales-summary > .editor-card:first-child { grid-column: 1 / -1; }
   .toolbar-actions { width: 100%; gap: 10px; }
