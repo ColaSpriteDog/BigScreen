@@ -28,7 +28,7 @@ def test_daily_full_stop_shows_zero_without_changing_line_status(ui_context, liv
     expect(row.locator('td').nth(10)).to_have_text('0%')
     page.goto(live_server + '/screen')
     card = page.locator('.line-card[data-line-id="4"]')
-    expect(card.locator('.data-list > div').last).to_have_text('运行状态运行中 0%')
+    expect(card.locator('.data-list > div').last).to_have_text('运行状态（月）运行中 0%')
 
 
 @pytest.mark.parametrize('width,height', [(1440, 900), (375, 812)])
@@ -59,7 +59,7 @@ def test_planned_hours_edit_save_and_screen_rate(ui_context, live_server, client
     data = client.get('/api/dashboard').get_json()['lines']
     assert [line['planned_hours'] for line in data] == [12, 0, 7.5, 24]
     assert data[1]['runtime_rate'] is None
-    expect(screen.locator('.line-card[data-line-id="2"] .data-list > div').last).to_have_text('运行状态运行中')
+    expect(screen.locator('.line-card[data-line-id="2"] .data-list > div').last).to_have_text('运行状态（月）运行中')
     editor.reload()
     expect(editor.get_by_test_id('save-button')).to_be_enabled()
     assert float(editor.get_by_test_id('planned-hours-1').locator('input').input_value()) == 12

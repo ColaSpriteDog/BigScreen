@@ -80,7 +80,7 @@ def test_browser_runtime_keeps_label_and_shows_monthly_hours(ui_context, live_se
     page.goto(live_server + '/screen')
     card = page.locator('.line-card[data-line-id="1"]')
     state = card.locator('.data-list > div').last
-    expect(state).to_have_text('运行状态运行中 75%')
+    expect(state).to_have_text('运行状态（月）运行中 75%')
     expect(state).to_have_attribute('title', '本月累计计划生产 20（小时）；异常停机 5（小时）；运行率按本月已录入数据的累计工时计算，缺少异常停机工时或无生产计划时不显示百分比')
     expect(card.locator('.progress-inner')).to_have_attribute('style', 'width: 75%;')
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')

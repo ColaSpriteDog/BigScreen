@@ -122,6 +122,18 @@ def test_duplicate_or_fractional_semi_records_are_not_silently_imported():
         parse_rows(rows)
 
 
+def test_fractional_cuttable_quantity_keeps_integer_part():
+    """验证预计可切割数量取整数部分；无参数；断言小数直接舍去且空值保持为空。"""
+    rows = summary_rows()
+    rows[4][9] = 31928.60917043386
+    rows[5][9] = '59,752.95'
+    rows[6][9] = None
+    result = parse_rows(rows)
+    assert result['raw'][0]['cuttable_qty'] == 31928
+    assert result['raw'][1]['cuttable_qty'] == 59752
+    assert result['raw'][2]['cuttable_qty'] is None
+
+
 def test_invalid_files_and_access_controls(client, app):
     """验证表名、格式和访问边界；参数为登录客户端和应用；断言明确错误、认证及同源检查。"""
     assert client.post('/api/inventory/preview').status_code == 400

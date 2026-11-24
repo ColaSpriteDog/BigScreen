@@ -73,7 +73,7 @@ def test_browser_construction_status_saves_without_fabricating_downtime(ui_conte
     expect(editor.get_by_test_id('save-status')).to_have_text('所有修改已保存')
     expect(card.locator('.line-state')).to_have_text('建设中', timeout=10000)
     expect(card).to_have_attribute('data-state', 'construction')
-    expect(card.locator('.data-list > div').last).to_have_text('运行状态建设中')
+    expect(card.locator('.data-list > div').last).to_have_text('运行状态（月）建设中')
     expect(screen.get_by_text('时间开动率', exact=True)).to_have_count(0)
     expect(editor.get_by_text('时间开动率', exact=True)).to_have_count(0)
     expect(card.locator('.progress-bar')).not_to_be_visible()

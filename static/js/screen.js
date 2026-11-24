@@ -83,7 +83,7 @@
       list.append(metric("标准产量" + dailyUnit, model.formatNumber(line.standard_qty)), metric("昨日产量" + unit, model.formatNumber(line.yesterday_qty)),
         metric("本月产量" + unit, model.formatNumber(line.monthly_qty)), metric(line.unit === "米" ? "昨日报废" : "昨日不良", defectText, line.yesterday_defect_qty > 0));
       const rate = line.runtime_rate == null ? "" : " " + model.formatPercent(line.runtime_rate);
-      const status = metric("运行状态", line.status_label + rate);
+      const status = metric("运行状态（月）", line.status_label + rate);
       status.lastElementChild.classList.add("line-state");
       status.title = `本月累计计划生产 ${model.formatNumber(line.monthly_planned_hours)}（小时）；异常停机 ${model.formatNumber(line.monthly_abnormal_hours)}（小时）；运行率按本月已录入数据的累计工时计算，缺少异常停机工时或无生产计划时不显示百分比`;
       list.append(status);

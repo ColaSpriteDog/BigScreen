@@ -44,6 +44,12 @@ def stock_number(value, label, integer=False, optional=False):
     return number(value, label, integer=integer, optional=optional)
 
 
+def stock_integer_part(value, label, optional=False):
+    """提取库存整数部分；value 为原值，label 用于报错，optional 控制空值；返回舍去小数后的整数或空值。"""
+    parsed = stock_number(value, label, optional=optional)
+    return None if parsed is None else int(parsed)
+
+
 def parse_rows(rows):
     """提取汇总表记录；rows 为按行迭代的缓存值；返回完整库存及汇总，任一错误拒绝整份导入。"""
     rows = iter(rows)
@@ -95,7 +101,7 @@ def parse_rows(rows):
                 item = {"material": material, "position": text(product, "产品名称", maximum=30),
                         "warehouse": "原材料仓库",
                         "weight_kg": stock_number(record.get("weight_kg"), "剩余总重量", optional=True),
-                        "cuttable_qty": stock_number(record.get("cuttable_qty"), "预计可切割数量", integer=True, optional=True)}
+                        "cuttable_qty": stock_integer_part(record.get("cuttable_qty"), "预计可切割数量", optional=True)}
             else:
                 raise ValidationError(f"无法识别物料类型“{material}”")
             item.update(specification=text(cell_text(record["specification"]), "规格型号", maximum=80 if kind == "raw" else 30),

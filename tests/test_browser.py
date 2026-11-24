@@ -231,7 +231,7 @@ def test_manual_maintenance_and_resume_from_settings(ui_context, live_server):
     editor.get_by_role('option', name='运行中', exact=True).click()
     editor.get_by_test_id('save-button').click()
     expect(screen.locator('.line-card[data-line-id="4"]')).to_have_attribute('data-state', 'running')
-    expect(screen.locator('.line-card[data-line-id="4"] .data-list > div').last).to_have_text('运行状态运行中')
+    expect(screen.locator('.line-card[data-line-id="4"] .data-list > div').last).to_have_text('运行状态（月）运行中')
 
 
 def test_validation_failure_keeps_draft_and_does_not_publish(ui_context, live_server):
