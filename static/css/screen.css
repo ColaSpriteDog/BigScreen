@@ -161,7 +161,8 @@
         }
         /* 桌面将流程图片区与留白的高度转给总览指标卡，保持上下区域总高度稳定。 */
         @media (min-width: 1201px) {
-            .kpi-card { padding-block: 15px; }
+            /* 指标卡上下各增加 8px 留白，提高生产数据总览区域高度。 */
+            .kpi-card { padding-block: 23px; }
             .process-step { padding-top: 6px; padding-bottom: 5px; }
             .process-illustration { height: 50px; }
         }
@@ -176,7 +177,7 @@
             .panel-title { margin-bottom: 7px; }
             .kpi-panel { padding: 6px 10px; }
             .kpi-panel .panel-title { line-height: 18px; margin-bottom: 4px; }
-            .kpi-card { padding: 11px 1px; }
+            .kpi-card { padding: 19px 1px; }
             .kpi-title { line-height: 1.2; }
             .kpi-val { font-size: 19px; line-height: 1.2; }
             .flow-panel { padding: 8px 10px; }
@@ -200,12 +201,19 @@
             .inv-table .val { font-size: 16px; }
             .inv-table td { padding: 10px 5px; }
             .panel-note, .chart-legend, .trend-total { font-size: 12px; }
-            .kpi-card { padding-block: 19px; }
+            .kpi-card { padding-block: 27px; }
             .kpi-val { font-size: 25px; }
             .process-step { padding: 8px 3px; }
             .process-illustration { height: 66px; }
             .process-step strong { font-size: 14px; }
             .process-step .step-status { font-size: 12px; }
+        }
+        /* 高桌面视口压缩流程插图和留白，释放的网格高度由产量趋势图承接。 */
+        @media (min-width: 1201px) and (min-height: 801px) {
+            .flow-panel { padding: 8px 12px; }
+            .flow-panel .panel-title { margin-bottom: 6px; padding-bottom: 4px; }
+            .process-step { padding: 5px 3px; }
+            .process-illustration { height: clamp(40px, 4.7vh, 50px); }
         }
         @media (max-width: 1200px) {
             header { grid-template-columns: auto 1fr; }
