@@ -71,9 +71,9 @@
     document.getElementById("lineCards").replaceChildren(...cards);
   }
 
-  /** 创建库存数值单元格；value 为数量、digits 为最多小数位；返回数字单元格，单位显示在表头。 */
-  function numericCell(value, digits = 2) {
-    const cell = node("td", "material-number");
+  /** 创建库存数值单元格；value 为数量、digits 为最多小数位、className 为业务样式；返回数字单元格，单位显示在表头。 */
+  function numericCell(value, digits = 2, className = "") {
+    const cell = node("td", "material-number" + (className ? " " + className : ""));
     cell.append(node("span", value == null ? "val is-empty" : "val", model.formatNumber(value, digits)));
     return cell;
   }
@@ -158,7 +158,7 @@
       // 钢卷归入原材料，行内按汇总表展示产品、规格、余量、重量和预计可切数量。
       row.append(node("td", "material-name material-part", item.position || item.material),
         specificationCell(item.specification),
-        ...rawUnits.map(unit => numericCell(item.unit === unit ? item.quantity : null)), numericCell(model.weightTonnes(item.weight_kg), 5));
+        ...rawUnits.map(unit => numericCell(item.unit === unit ? item.quantity : null, 2, "stock-quantity")), numericCell(model.weightTonnes(item.weight_kg), 5));
       row.append(numericCell(item.cuttable_qty));
       return row;
     });
@@ -169,7 +169,8 @@
       if (index === 0 || items[index - 1].category !== item.category) {
         let count = 1;
         while (index + count < items.length && items[index + count].category === item.category) count++;
-        const category = node("td", "semi-group", item.category);
+        const category = node("td", "semi-group");
+        category.append(node("span", "semi-group-label", item.category));
         category.rowSpan = count;
         row.append(category);
       }
@@ -313,8 +314,10 @@
 
   /** 启动库存明细每秒十像素滚动；无参数；无返回值，无需按钮，手动操作后暂缓恢复。 */
   function startInventoryScroll() {
+    // 首尾各停留四秒，给远距离查看明细留出阅读时间。
+    const endPause = 4000;
     const states = [...document.querySelectorAll(".material-table-wrap")].map(element => {
-      const state = { element, position: 0, lastTop: 0, focused: false, resumeAt: performance.now() + 2000, atBottom: false };
+      const state = { element, position: 0, lastTop: 0, focused: false, resumeAt: performance.now() + endPause, atBottom: false };
       element.addEventListener("focusin", () => { state.focused = true; });
       element.addEventListener("focusout", event => { state.focused = element.contains(event.relatedTarget); });
       for (const event of ["wheel", "touchstart", "touchmove"]) element.addEventListener(event, () => { state.resumeAt = performance.now() + 3000; }, { passive: true });
@@ -338,10 +341,10 @@
         if (state.atBottom) {
           state.position = 0;
           state.atBottom = false;
-          state.resumeAt = now + 2000;
+          state.resumeAt = now + endPause;
         } else {
           state.position = Math.min(state.position + elapsed * 10, max);
-          if (state.position === max) { state.atBottom = true; state.resumeAt = now + 2000; }
+          if (state.position === max) { state.atBottom = true; state.resumeAt = now + endPause; }
         }
         element.scrollTop = state.position;
         state.lastTop = element.scrollTop;

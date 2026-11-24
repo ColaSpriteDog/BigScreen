@@ -55,12 +55,13 @@
         .inv-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; flex-shrink: 0; }
         .inv-summary > div { background: var(--surface-raised); border: 1px solid var(--border-color); border-radius: 3px; padding: 5px 10px; }
         .inv-label { font-size: 11px; color: var(--text-sub); }
-        .inv-summary .num { font: 700 27px/1.15 var(--font-number); color: var(--orange); font-variant-numeric: tabular-nums; }
+        .inv-summary .num { font: 700 27px/1.15 var(--font-number); color: var(--text-strong); font-variant-numeric: tabular-nums; }
         .num .unit { font: 12px 'Microsoft YaHei', sans-serif; margin-left: 3px; color: var(--text-sub); }
         .inv-details-wrap { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
         .inv-section { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
+        /* 原材料按实际内容占高，最多使用一半空间，其余高度留给半成品。 */
+        .inv-section:first-child { flex: 0 1 auto; max-height: 50%; }
         .section-title { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: var(--cyan); font-size: 12px; font-weight: 700; margin-bottom: 5px; flex-shrink: 0; }
-        .inv-section + .inv-section .section-title { color: var(--green); }
         .inventory-warning { font-size: 11px; color: var(--red); font-weight: 400; }
         .material-table-wrap { flex: 1; min-height: 0; overflow: auto; scrollbar-width: none; -ms-overflow-style: none; }
         /* 隐藏滚动条，保留自动滚动与手动查看。 */
@@ -85,6 +86,9 @@
         .is-shortage td:first-child { box-shadow: inset 2px 0 var(--red); }
         .stock-warning { display: inline-block; padding: 0 4px; background: #a52e43; color: #fff; border-radius: 3px; font-size: 10px; white-space: nowrap; }
         .semi-group { color: var(--cyan); text-align: center; border-right: 1px solid var(--border-soft); }
+        .inv-table td.semi-group { vertical-align: top; }
+        /* 合并分类保留整组边界，名称在表头下方停留，避免滚动后失去左右件定位。 */
+        .semi-group-label { display: block; position: sticky; top: calc(var(--inventory-header-height) + 6px); }
         .semi-spec { text-align: center; }
         .semi-group-start td { border-top: 1px solid var(--border-color); }
         .chart-panel { grid-column: 2 / 4; grid-row: 2; }
@@ -273,17 +277,21 @@
 .material-table .stock-warning { font-size: 9px; padding: 0 2px; }
 
 /* 库存表统一行高和数值基线，表头名称与单位在同一行显示。 */
-.inv-table th { height: 30px; vertical-align: middle; line-height: 1.35; padding-block: 5px; }
-.inventory-column-unit { display: inline; font-size: .85em; color: var(--text-sub); opacity: .7; }
+.inv-table { --inventory-header-height: 30px; }
+.inv-table th { height: var(--inventory-header-height); vertical-align: middle; line-height: 1.35; padding-block: 5px; }
+.inventory-column-unit { display: inline; font-size: .9em; color: #bfd1df; }
 .inv-table td { height: 32px; padding-block: 6px; line-height: 1.45; border-bottom-color: rgba(169, 192, 209, .1); }
 .inv-table .val { font-weight: 600; font-variant-numeric: tabular-nums; }
 .inv-table .val.is-empty { color: var(--text-sub); opacity: .5; font-weight: 400; }
-.inv-table td.material-spec, .inv-table td.semi-spec { color: var(--text-sub); }
+.inv-table td.material-spec, .inv-table td.semi-spec { color: #bfd1df; }
 .material-spec-part { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
 .inv-table tbody tr:nth-child(even):not(.is-shortage) { background: rgba(169, 192, 209, .025); }
 .inv-table .is-shortage { background: rgba(255, 98, 115, .075); }
+/* 只突出缺料数量，重量和未填写的可切数量保持原有语义。 */
+.inv-table .is-shortage .stock-quantity .val:not(.is-empty) { color: var(--red); font-weight: 700; }
 @media (min-width: 1600px) and (min-height: 900px) {
-    .inv-table th { height: 34px; padding-block: 6px; }
+    .inv-table { --inventory-header-height: 34px; }
+    .inv-table th { padding-block: 6px; }
     .inv-table td { height: 38px; padding-block: 8px; }
 }
 
