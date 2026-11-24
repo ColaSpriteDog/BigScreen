@@ -11,7 +11,7 @@
   <script defer src="/static/vendor/element-plus-zh-cn.js"></script>
   <script defer src="/static/js/model.js?v=20261123-production-import"></script>
   <script defer src="/static/js/api.js?v=20261123-import"></script>
-  <script defer src="/static/js/editor.js?v=20261123-oee-import"></script>
+  <script defer src="/static/js/editor.js?v=20261124-inventory-weight-summary"></script>
 </head>
 <body>
   <div id="bootStatus" role="status">正在加载编辑页面…</div>
@@ -85,7 +85,7 @@
 </el-table></div>
         </section>
         <section v-show="activeTab==='inventory'" id="panel-inventory" role="tabpanel" aria-labelledby="tab-inventory" data-testid="inventory-panel">
-          <div class="section-toolbar"><div class="heading-with-total"><h2>原材料库存</h2><span>{{rawSummary}}</span><span v-if="rawZeroCount" class="zero-stock-badge">{{rawZeroCount}}项零库存</span></div><el-button @click="addRaw" data-testid="add-raw"><svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16"></path></svg>新增原材料</el-button></div>
+          <div class="section-toolbar"><div class="heading-with-total"><h2>原材料库存</h2><span>{{rawSummary}}</span><span data-testid="raw-weight-summary">{{rawWeightSummary}}</span><span v-if="rawZeroCount" class="zero-stock-badge">{{rawZeroCount}}项零库存</span></div><el-button @click="addRaw" data-testid="add-raw"><svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16"></path></svg>新增原材料</el-button></div>
           <div class="editor-card"><el-table :data="inventory.raw" row-key="_key" class="editable-table" empty-text="暂无原材料记录" data-testid="raw-editor-table" :row-class-name="scope=>rowClass('inventory','raw',scope.row)" :cell-class-name="scope=>cellClass('inventory','raw',scope)">
             <el-table-column prop="material" label="物料" min-width="100"><template #default="scope"><el-input v-model="scope.row.material" maxlength="30" @input="markDirty('inventory')" aria-label="原材料物料" :data-testid="'raw-material-'+scope.$index"></el-input></template></el-table-column>
             <el-table-column prop="warehouse" label="仓库" min-width="140"><template #default="scope"><el-select v-model="scope.row.warehouse" filterable allow-create default-first-option @change="markDirty('inventory')" aria-label="原材料仓库"><el-option v-for="name in rawWarehouses" :key="name" :value="name" :label="name"></el-option></el-select></template></el-table-column>

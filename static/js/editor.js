@@ -101,6 +101,12 @@
       },
       /** 汇总原材料；无参数；返回按单位分组的预览文本。 */
       rawSummary() { return this.stockSummary(this.inventory.raw); },
+      /** 汇总后台全部原材料重量；无参数；返回吨数及括号单位，随草稿更新，全空时保留缺失符号。 */
+      rawWeightSummary() {
+        const weights = this.inventory.raw.filter(item => item.weight_kg != null && item.weight_kg !== "");
+        const total = weights.length ? weights.reduce((sum, item) => sum + Number(item.weight_kg), 0) : null;
+        return this.fmtWeight(total) + BoardModel.unitLabel("吨");
+      },
       /** 汇总半成品；无参数；返回按单位分组的预览文本。 */
       semiSummary() { return this.stockSummary(this.inventory.semi); },
       /** 统计原材料零库存；无参数；返回数量为零的记录数，未填写数量不计入。 */

@@ -134,6 +134,10 @@
   /** 展示库存独立字段；inventory 为后端库存模块；无返回值，相同明细不重绘以保留滚动位置。 */
   function renderInventory(inventory) {
     renderSummary("rawTotal", inventory.raw_totals);
+    // 仅汇总已填写的千克重量后换算为吨，全空时保持缺失，明确零值正常展示。
+    const weights = inventory.raw.filter(item => item.weight_kg != null && item.weight_kg !== "");
+    const totalWeight = weights.length ? model.weightTonnes(weights.reduce((sum, item) => sum + Number(item.weight_kg), 0)) : null;
+    document.getElementById("rawWeight").replaceChildren(document.createTextNode(model.formatNumber(totalWeight, 5)), node("span", "unit", model.unitLabel("吨")));
     renderSummary("semiTotal", inventory.semi_totals);
     setText("zeroCount", inventory.zero_count ? `${inventory.zero_count}项零库存` : "");
     const signature = JSON.stringify([inventory.raw, inventory.semi]);

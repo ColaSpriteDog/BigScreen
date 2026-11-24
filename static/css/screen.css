@@ -52,11 +52,15 @@
         .is-maintenance .progress-bar { background: #493622; }
         .inventory-panel { grid-column: 1; grid-row: 2 / 5; }
         .inventory-panel > .panel-title { border-color: var(--cyan); }
-        .inv-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; flex-shrink: 0; }
+        .inv-summary { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 8px; margin-bottom: 10px; flex-shrink: 0; container-type: inline-size; }
         .inv-summary > div { background: var(--surface-raised); border: 1px solid var(--border-color); border-radius: 3px; padding: 5px 10px; }
         .inv-label { font-size: 11px; color: var(--text-sub); }
-        .inv-summary .num { font: 700 27px/1.15 var(--font-number); color: var(--text-strong); font-variant-numeric: tabular-nums; }
+        .inv-summary .num { font: 700 clamp(14px, 6cqw, 27px)/1.15 var(--font-number); color: var(--text-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        /* 原材料分配更宽空间，卷数与重量固定同行，三项数字随摘要宽度统一缩放。 */
+        .inv-raw-values { display: flex; align-items: baseline; gap: clamp(4px, 1.6cqw, 8px); }
+        .inv-summary .inv-weight { margin-left: auto; white-space: nowrap; }
         .num .unit { font: 12px 'Microsoft YaHei', sans-serif; margin-left: 3px; color: var(--text-sub); }
+        .inv-summary .unit { font-size: clamp(8px, 2.5cqw, 12px); margin-left: 2px; }
         .inv-details-wrap { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
         .inv-section { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
         /* 原材料按实际内容占高，最多使用一半空间，其余高度留给半成品。 */
