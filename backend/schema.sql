@@ -84,6 +84,12 @@ CREATE TABLE IF NOT EXISTS sales_month (
     order_qty INTEGER CHECK (order_qty IS NULL OR order_qty >= 0)
 );
 
+-- 月计划单独保存，空值表示使用日报累计计划，不跨月沿用。
+CREATE TABLE IF NOT EXISTS production_month_plan (
+    month TEXT PRIMARY KEY,
+    planned_qty INTEGER CHECK (planned_qty IS NULL OR planned_qty >= 0)
+);
+
 CREATE TABLE IF NOT EXISTS shipment_month_item (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     month TEXT NOT NULL REFERENCES sales_month(month) ON DELETE CASCADE,
@@ -129,4 +135,4 @@ CREATE TABLE IF NOT EXISTS record_attribution (
     PRIMARY KEY (record_type, record_key)
 );
 
-PRAGMA user_version = 5;
+PRAGMA user_version = 6;

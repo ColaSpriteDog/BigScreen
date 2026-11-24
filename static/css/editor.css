@@ -41,8 +41,12 @@ body { margin: 0; background: var(--editor-bg); color: var(--editor-ink); font: 
 /* 月份框与导入按钮统一为 40px，保持上下边缘及内容居中对齐。 */
 .inventory-import-toolbar .el-date-editor { --el-input-height: 40px; height: 40px; }
 /* 生产导入月份与操作按钮并排，窄屏允许换行，沿用现有工具栏层级。 */
-.production-import-toolbar { gap: 10px; flex-wrap: wrap; padding: 0 0 16px; }
+.production-import-toolbar { gap: 10px; align-items: center; justify-content: flex-start; flex-wrap: wrap; padding: 0 0 16px; }
 .production-import-toolbar .el-date-editor { width: 150px; flex: none; }
+/* 月份与月计划保持相邻，导入按钮在宽屏靠右，窄屏自然换行。 */
+.production-import-toolbar .el-input-number { width: 170px; flex: none; }
+.monthly-plan-label { color: var(--editor-muted); font-size: 12px; white-space: nowrap; }
+.production-import-toolbar .production-import-button { margin-left: auto; }
 .warehouse-import-toolbar { flex-wrap: wrap; gap: 10px; padding: 0 0 16px; }
 /* 三类明细在弹窗正文中滚动，确认按钮始终可见。 */
 .warehouse-import-dialog { display: flex; flex-direction: column; overflow: hidden; }

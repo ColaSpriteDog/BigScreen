@@ -11,13 +11,14 @@ TABLES = {
     "raw_material_stock": (("id",), ("material", "warehouse", "specification", "position", "quantity", "unit", "weight_kg", "cuttable_qty")),
     "semi_finished_stock": (("id",), ("category", "material", "warehouse", "specification", "quantity", "unit")),
     "sales_month": (("month",), ("order_qty",)),
+    "production_month_plan": (("month",), ("planned_qty",)),
     "shipment_month_item": (("id",), ("month", "part_no", "quantity", "name", "shipment_date")),
     "screen_settings": (("id",), ("timezone", "safety_start_date")),
     "production_line": (("id",), ("name", "standard_qty", "show_in_trend", "theoretical_max_per_hour")),
     "process_node": (("id",), ("manual_status",)),
     "employee": (("id",), ("username", "name", "password", "enabled")),
 }
-OPTIONAL_TABLES = {"production_daily", "daily_overview", "sales_month"}
+OPTIONAL_TABLES = {"production_daily", "daily_overview", "sales_month", "production_month_plan"}
 
 
 def record_key(values):
@@ -31,7 +32,7 @@ def write_scope(writer, arguments):
         return {"production_daily": ("substr(work_date,1,7)=?", arguments), "production_line": ("1", ())}
     if writer == "save_production":
         return {"production_daily": ("work_date=?", arguments), "daily_overview": ("work_date=?", arguments),
-                "line_downtime": ("1", ())}
+                "line_downtime": ("1", ()), "production_month_plan": ("1", ())}
     if writer == "save_inventory":
         return {table: ("1", ()) for table in ("raw_material_stock", "semi_finished_stock")}
     if writer == "save_warehouse_import":

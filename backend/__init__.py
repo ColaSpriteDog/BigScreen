@@ -195,10 +195,11 @@ def create_app(configuration=None):
 
     @app.get("/api/editor")
     def editor_data():
-        """读取表单；date、month 查询参数选择日报和销售月份；返回原始录入值及版本。"""
+        """读取表单；date、month、production_month 分别选择日报、销售和月计划周期；返回表单及版本。"""
         db = get_db()
         with service.consistent_read(db):
-            result = service.editor_snapshot(db, app.config["NOW_PROVIDER"](), request.args.get("date"), request.args.get("month"))
+            result = service.editor_snapshot(db, app.config["NOW_PROVIDER"](), request.args.get("date"),
+                                             request.args.get("month"), production_month=request.args.get("production_month"))
         return jsonify(result)
 
     @app.put("/api/production/<day>")

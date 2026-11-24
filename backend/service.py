@@ -83,14 +83,17 @@ def downtime_rows(db, day, zone):
                 (finish.isoformat(), start.isoformat()))
 
 
-def editor_snapshot(db, now, day=None, month=None, include_audit=True):
-    """读取编辑表单；now 为当前时间，day/month 为周期，include_audit 控制人员信息；返回原始录入字段及可选归属。"""
+def editor_snapshot(db, now, day=None, month=None, include_audit=True, production_month=None):
+    """读取编辑表单；now 为当前时间，day/month/production_month 为日报、销售和月计划周期；返回含可选人员信息的表单。"""
     config = settings(db)
     zone = config["timezone"]
     today = now.astimezone(ZoneInfo(zone)).date().isoformat()
     day, month = day or today, month or today[:7]
     parse_date(day)
     parse_month(month)
+    # 生产月份独立于日报日期及销售月份，默认读取业务当月。
+    production_month = parse_month(production_month or today[:7])
+    plan = rows(db, "SELECT * FROM production_month_plan WHERE month=?", (production_month,))
     output = {row["line_id"]: row for row in rows(db, "SELECT * FROM production_daily WHERE work_date=?", (day,))}
     lines = rows(db, "SELECT * FROM production_line ORDER BY sort_order")
     current_stops = downtime_rows(db, today, zone)
@@ -117,7 +120,9 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True):
     result = {
         "version": config["version"], "updated_at": config["updated_at"], "server_time": now.isoformat(),
         "business_date": today, "date": day, "month": month, "settings": config,
-        "production": {"lines": lines, "downtimes": stops, "overview": overview[0] if overview else {
+        "production": {"lines": lines, "downtimes": stops,
+            "monthly_plan": plan[0] if plan else {"month": production_month, "planned_qty": None},
+            "overview": overview[0] if overview else {
             "planned_qty": None, "actual_qty": None, "oee_percent": None, "quality_percent": None, "average_output": None}},
         "inventory": {"raw": rows(db, "SELECT * FROM raw_material_stock ORDER BY sort_order,id"),
                       "semi": rows(db, "SELECT * FROM semi_finished_stock ORDER BY sort_order,id")},
@@ -132,6 +137,7 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True):
     if include_audit:
         lookup = audit.attribution_lookup(db)
         audit.attach([config], "screen_settings", lookup)
+        audit.attach([result["production"]["monthly_plan"]], "production_month_plan", lookup, bool(plan))
         for line in lines:
             audit.attach([line], "production_line", lookup)
             line["_configuration_audit"] = line.pop("_audit")
@@ -195,9 +201,14 @@ def production_totals(db, first_day, last_day):
 
 
 def monthly_overview(db, day):
-    """汇总当月全局指标；db 为连接、day 为业务今天；返回月初至今天按日报自动计算的全部指标。"""
-    # 全部指标统一来自拼焊日报，旧版手填全局数据不再参与展示。
-    return production_totals(db, day[:7] + "-01", day)
+    """汇总当月全局指标；db 为连接、day 为业务今天；返回优先使用月计划设置的指标。"""
+    totals = production_totals(db, day[:7] + "-01", day)
+    # 显式零也是有效设置，只有未设置或清空时才回退日报累计计划。
+    plan = db.execute("SELECT planned_qty FROM production_month_plan WHERE month=?", (day[:7],)).fetchone()
+    if plan is not None and plan["planned_qty"] is not None:
+        totals["planned_qty"] = plan["planned_qty"]
+        totals["completion_rate"] = ratio(totals["actual_qty"], totals["planned_qty"])
+    return totals
 
 
 def dashboard_snapshot(db, now):
@@ -298,10 +309,17 @@ def validate_line_ids(db, items):
 
 
 def save_production(db, payload, day, now):
-    """保存日报与停机草稿；day 为业务日期、now 为保存时间；无返回值，外层事务统一提交。"""
+    """保存日报、月计划与停机草稿；day 为业务日期、now 为保存时间；无返回值，外层事务统一提交。"""
     parse_date(day)
     if parse_date(day) > now.astimezone(ZoneInfo(settings(db)["timezone"])).date():
         raise ValidationError("生产日报不能录入未来日期")
+    # 缺少字段的旧日报请求保留月计划；月份随草稿提交，避免跨月写错目标。
+    if "monthly_plan" in payload:
+        plan = object_value(payload["monthly_plan"])
+        plan_month = parse_month(plan.get("month"))
+        planned_qty = number(plan.get("planned_qty"), "月计划产量", integer=True, optional=True)
+        db.execute("INSERT INTO production_month_plan(month,planned_qty) VALUES(?,?) "
+                   "ON CONFLICT(month) DO UPDATE SET planned_qty=excluded.planned_qty", (plan_month, planned_qty))
     lines = array_value(payload.get("lines"), "产线日报", 20)
     known = validate_line_ids(db, lines)
     existing_hours = {row["line_id"]: row["planned_hours"] for row in db.execute(

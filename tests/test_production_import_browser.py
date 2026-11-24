@@ -18,7 +18,7 @@ def test_production_preview_cancel_save_and_mixed_units(ui_context, live_server,
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(live_server + '/edit')
     expect(page.get_by_test_id('save-button')).to_be_enabled()
-    expect(page.get_by_label('生产导入月份', exact=True)).to_have_value('2026-11')
+    expect(page.get_by_label('生产月份', exact=True)).to_have_value('2026-11')
     upload = {'name': '生产日报.xlsx', 'mimeType': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
               'buffer': production_workbook().getvalue()}
     page.get_by_label('生产日报 Excel 文件', exact=True).set_input_files(upload)

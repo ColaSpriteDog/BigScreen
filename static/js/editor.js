@@ -50,7 +50,8 @@
         baselines: {}, employees: { items: [] }, currentEmployee: null,
         production: { lines: [], overview: {}, downtimes: [] }, inventory: { raw: [], semi: [] },
         warehouseImport: null, warehouseDialogVisible: false, warehouseMonth: "",
-        productionImport: null, productionDialogVisible: false, productionImportMonth: "", productionImportSelection: [], productionOverwrite: false,
+        productionImport: null, productionDialogVisible: false, productionImportMonth: "", loadedProductionMonth: "",
+        productionImportSelection: [], productionOverwrite: false,
         sales: { order_qty: null, items: [] }, settingsForm: { timezone: "UTC", safety_start_date: null, lines: [], processes: [] } };
     },
     computed: {
@@ -189,13 +190,13 @@
         this.version = snapshot.version;
         this.businessDate = snapshot.business_date;
         if (!this.warehouseMonth) this.warehouseMonth = snapshot.business_date.slice(0, 7);
-        if (!this.productionImportMonth) this.productionImportMonth = snapshot.business_date.slice(0, 7);
         this.timezone = snapshot.settings.timezone;
         this.serverTime = snapshot.server_time;
         this.savedAt = snapshot.version ? snapshot.updated_at : "";
         if (initial || module === "production") {
           this.production = clone(snapshot.production);
           this.production.downtimes = this.keyed(snapshot.production.downtimes);
+          this.productionImportMonth = this.loadedProductionMonth = snapshot.production.monthly_plan.month;
           this.selectedDate = this.loadedDate = snapshot.date;
         }
         if (initial || module === "inventory") this.inventory = { raw: this.keyed(snapshot.inventory.raw), semi: this.keyed(snapshot.inventory.semi) };
@@ -239,6 +240,7 @@
           const query = new URLSearchParams();
           if (this.selectedDate) query.set("date", this.selectedDate);
           if (this.selectedMonth) query.set("month", this.selectedMonth);
+          if (this.productionImportMonth) query.set("production_month", this.productionImportMonth);
           const snapshot = await BoardAPI.request("/api/editor?" + query);
           this.applySnapshot(snapshot, module, initial);
           return true;
@@ -318,6 +320,13 @@
       async changeMonth(value) {
         if (!value || !await this.discardDraft()) { this.selectedMonth = this.loadedMonth; return; }
         if (!await this.loadModule("sales")) this.selectedMonth = this.loadedMonth;
+      },
+      /** 切换生产月份；value 为目标月份；返回读取 Promise，取消或失败时恢复原月份及草稿。 */
+      async changeProductionMonth(value) {
+        // 日期组件恢复原值时不重复弹出草稿确认。
+        if (value === this.loadedProductionMonth) return;
+        if (!value || !await this.discardDraft()) { this.productionImportMonth = this.loadedProductionMonth; return; }
+        if (!await this.loadModule("production")) this.productionImportMonth = this.loadedProductionMonth;
       },
       /** 构造当前模块请求；无参数；返回接口路径与业务载荷。 */
       saveRequest() {
