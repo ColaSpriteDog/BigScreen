@@ -100,7 +100,7 @@
 
   /** 更新库存表头；id 为行标识，before/after 为固定字段，units 为单位列；返回完整列配置。 */
   function inventoryHeader(id, before, units, after = []) {
-    const columns = [...before, ...units.map(unit => ({ label: "剩余数量" + model.unitLabel(unit), className: "material-number stock-heading", width: 30 })), ...after];
+    const columns = [...before, ...units.map(unit => ({ label: "剩余数量" + model.unitLabel(unit), className: "material-number stock-heading", width: 26 })), ...after];
     document.getElementById(id).replaceChildren(...columns.map(column => {
       const heading = node("th", column.className || "");
       // 单位紧跟字段名称显示，使用较小字号保持表头单行。
@@ -149,7 +149,8 @@
       { label: "产品名称", width: 18 }, { label: "规格型号", width: 30 },
     ], rawUnits, [
       { label: "重量（吨）", className: "material-number", width: 22 },
-      { label: "可切（件）", className: "material-number", width: 22 },
+      // 缩窄余量列后将空间留给可切件数，保持单一单位时表格总权重不变。
+      { label: "可切（件）", className: "material-number", width: 26 },
     ]);
     const totalWidth = rawColumns.reduce((sum, column) => sum + column.width, 0);
     document.getElementById("rawTableColumns").replaceChildren(...rawColumns.map(column => {

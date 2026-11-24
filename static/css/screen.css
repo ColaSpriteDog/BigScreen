@@ -79,7 +79,8 @@
         /* 独立业务列与产线 01 同宽；规格和仓库允许换行，保留完整字段。 */
         .material-table { min-width: 0; table-layout: fixed; }
         .material-table th, .material-table td { padding-left: 3px; padding-right: 3px; }
-        .inv-table .material-number, .semi-table th:last-child, .semi-table td:last-child { text-align: right; }
+        /* 库存数值列的表头与内容统一居中，便于逐列对照。 */
+        .inv-table .material-number, .semi-table th:last-child, .semi-table td:last-child { text-align: center; }
         .material-status { text-align: center; }
         .warehouse-field, .material-part { white-space: nowrap; }
         .stock-available { color: var(--text-sub); font-size: 11px; white-space: nowrap; }
