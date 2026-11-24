@@ -133,11 +133,13 @@
         .process-alert { position: absolute; right: -7px; top: -8px; display: flex; align-items: center; justify-content: center; width: 21px; height: 21px; background: var(--orange); border: 1px solid #ffd28f; border-radius: 50%; color: #30200d; box-shadow: 0 0 8px rgba(255, 157, 35, .4); }
         .process-alert svg { width: 14px; height: 14px; }
         .shipment-panel { grid-column: 4; grid-row: 2 / 4; }
-        .shipment-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; flex-shrink: 0; margin-bottom: 10px; }
-        .shipment-summary > div { text-align: center; padding: 8px 2px; background: var(--surface-raised); border: 1px solid var(--border-color); border-radius: 3px; }
+        /* 三项指标共用底面，以分隔线组织层级，给下方排行留出更多空间。 */
+        .shipment-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex-shrink: 0; margin-bottom: 12px; padding: 10px 0; background: rgba(169, 192, 209, .04); border-radius: 3px; }
+        .shipment-summary > div { min-width: 0; text-align: center; padding: 0 3px; }
+        .shipment-summary > div + div { border-left: 1px solid var(--border-color); }
         .shipment-summary-label { color: var(--text-sub); font-size: 11px; white-space: nowrap; }
-        .shipment-summary-value { color: var(--text-strong); font: 700 clamp(17px, 1.5vw, 28px)/1.5 var(--font-number); white-space: nowrap; }
-        .shipment-summary > div:nth-child(2) .shipment-summary-value { color: var(--orange); }
+        .shipment-summary-value { margin-top: 4px; color: var(--text-strong); font: 600 clamp(18px, 1.5vw, 28px)/1.2 var(--font-number); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .shipment-summary > div:nth-child(2) .shipment-summary-value { color: var(--cyan); }
         .shipment-summary > div:nth-child(3) .shipment-summary-value { color: var(--green); }
         /* 汇总后的前八个件号复用原横柱图布局，画布随面板高度伸缩。 */
         .shipment-chart { width: 100%; flex: 1; min-height: 0; contain: size; }

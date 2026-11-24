@@ -6,15 +6,20 @@ test('出货排名在件号下显示名称，悬浮提示保留完整名称，�
   const ranking = [{ part_no: 'LP000365', name: '门环左件', quantity: 8200 },
     { part_no: 'LP000366', name: '', quantity: 7300 }];
   const option = model.buildShipmentOption(ranking);
-  assert.deepEqual(option.yAxis.data, ['LP000365', 'LP000366']);
-  assert.equal(option.yAxis.axisLabel.formatter('LP000365', 0), '01  LP000365\n门环左件');
-  assert.equal(option.yAxis.axisLabel.formatter('LP000366', 1), '02  LP000366');
+  assert.deepEqual(option.yAxis[0].data, ['LP000365', 'LP000366']);
+  assert.equal(option.yAxis[0].axisLabel.formatter('LP000365', 0), '{leading|01}{part|LP000365}\n{indent| }{detail|门环左件}');
+  assert.equal(option.yAxis[0].axisLabel.formatter('LP000366', 1), '{leading|02}{part|LP000366}');
   assert.equal(option.tooltip.formatter([{ name: 'LP000365', dataIndex: 0, value: 8200 }]), 'LP000365\n门环左件\n出货数量：8,200 件');
   assert.equal(option.tooltip.formatter([{ name: 'LP000366', dataIndex: 1, value: 7300 }]), 'LP000366\n出货数量：7,300 件');
   assert.deepEqual(option.series[0].data, [8200, 7300]);
   // 满八项时两行文字必须落在各自的可用高度内。
   const compact = model.buildShipmentOption(Array.from({ length: 8 }, () => ranking[0]), 210);
-  assert.ok(compact.yAxis.axisLabel.lineHeight * 2 < (210 - 18) / 8);
+  assert.ok(compact.yAxis[0].axisLabel.lineHeight * 2 < (210 - 18) / 8);
+  // 数量独立成列，零值不依赖柱体面积，长名称仍能从提示中查看全文。
+  const boundary = model.buildShipmentOption([{ part_no: 'LONG-PART-NUMBER-001', name: '用于检查超长名称的门环左件', quantity: 0 }]);
+  assert.equal(boundary.yAxis[1].axisLabel.formatter('', 0), '{value|0}{unit| 件}');
+  assert.match(boundary.yAxis[0].axisLabel.formatter('LONG-PART-NUMBER-001', 0), /…/);
+  assert.match(boundary.tooltip.formatter([{ name: 'LONG-PART-NUMBER-001', dataIndex: 0, value: 0 }]), /用于检查超长名称的门环左件/);
 });
 
 test('重量以吨显示并按千克保存，保留精度、零值和空白', () => {

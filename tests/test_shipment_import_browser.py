@@ -61,7 +61,7 @@ def test_import_each_shipment_and_rank_monthly_parts(ui_context, live_server, cl
     assert chart['series'][0]['data'] == [1720, 400]
     # 检查真实图表的标签与提示，确保汇总后的名称传到渲染层。
     label = screen.evaluate("echarts.getInstanceByDom(document.querySelector('#shipmentChart')).getOption().yAxis[0].axisLabel.formatter('LP000366', 0)")
-    assert label == '01  LP000366\n门环右件'
+    assert label == '{leading|01}{part|LP000366}\n{indent| }{detail|门环右件}'
     tooltip = screen.evaluate("echarts.getInstanceByDom(document.querySelector('#shipmentChart')).getOption().tooltip[0].formatter([{name:'LP000366',dataIndex:0,value:1720}])")
     assert '门环右件' in tooltip
     expect(screen.locator('#shippedQty')).to_have_text('2,120')

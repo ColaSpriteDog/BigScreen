@@ -119,28 +119,51 @@ const BoardModel = (() => {
   function buildShipmentOption(ranking, height = 300) {
     // 根据每项可用高度调整双行标签，避免小屏显示满八项时相互遮挡。
     const labelLineHeight = Math.max(10, Math.min(16, Math.floor((height - 18) / Math.max(1, ranking.length) / 2) - 1));
+    const categories = ranking.map(item => item.part_no);
+    // 数量列按实际最长文本预留宽度，与柱长解耦，零数量也能完整显示。
+    const quantityWidth = Math.max(52, ...ranking.map(item => formatNumber(item.quantity).length * 7 + 20));
     return {
       animation: false,
       textStyle: { fontFamily: "Bahnschrift, Microsoft YaHei, sans-serif" },
-      grid: { top: 12, right: 66, bottom: 6, left: 4, containLabel: true },
-      tooltip: { trigger: "axis", confine: true, renderMode: "richText", axisPointer: { type: "shadow" },
-        backgroundColor: "#122936", borderColor: "#1b3545", textStyle: { color: "#f2f7fb" },
+      grid: { top: 10, right: quantityWidth, bottom: 8, left: 120 },
+      tooltip: { trigger: "axis", confine: true, renderMode: "richText",
+        axisPointer: { type: "shadow", shadowStyle: { color: "rgba(169, 192, 209, .045)" } },
+        backgroundColor: "#122936", borderColor: "#294859", borderWidth: 1, padding: [10, 12],
+        textStyle: { color: "#f2f7fb", fontSize: 12, lineHeight: 20 },
         // 提示保留完整名称，便于查看坐标轴上因长度被截断的内容。
         formatter: params => {
           const item = ranking[params[0]?.dataIndex];
           return `${params[0]?.name || ""}${item?.name ? "\n" + item.name : ""}\n出货数量：${formatNumber(params[0]?.value)} 件`;
         } },
       xAxis: { type: "value", show: false, min: 0 },
-      yAxis: { type: "category", inverse: true, data: ranking.map(item => item.part_no),
+      yAxis: [{ type: "category", inverse: true, data: categories,
         axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: "#a9c0d1", fontSize: labelLineHeight < 13 ? 10 : 11, lineHeight: labelLineHeight, margin: 8, interval: 0, width: 112, overflow: "truncate",
+        axisLabel: { color: "#a9c0d1", fontSize: labelLineHeight < 13 ? 10 : 11, lineHeight: labelLineHeight, margin: 10, interval: 0,
+          rich: {
+            rank: { width: 22, align: "left", color: "#668595", fontSize: 10 },
+            leading: { width: 22, align: "left", color: "#20dda4", fontSize: 10, fontWeight: 700 },
+            part: { width: 88, align: "left", color: "#e0ebf2", fontWeight: 600 },
+            indent: { width: 22, align: "left" },
+            detail: { width: 88, align: "left", color: "#809cab", fontSize: labelLineHeight < 13 ? 9 : 10, overflow: "truncate" },
+          },
           // 件号与名称分行显示，名称为空时不添加空行。
-          formatter: (value, index) => `${String(index + 1).padStart(2, "0")}  ${value}${ranking[index]?.name ? "\n" + ranking[index].name : ""}` } },
-      series: [{ name: "出货数量", type: "bar", barWidth: Math.max(6, Math.min(14, (height - 18) / 16)),
-        showBackground: true, backgroundStyle: { color: "#122936", borderRadius: 2 },
-        itemStyle: { color: params => params.dataIndex < 3 ? "#20dda4" : "#32c3f2", borderRadius: [0, 3, 3, 0] },
-        label: { show: true, position: "right", distance: 6, color: "#a9c0d1", fontSize: 11, fontWeight: "bold",
-          formatter: params => `${formatNumber(params.value)} 件` },
+          formatter: (value, index) => {
+            const rank = String(index + 1).padStart(2, "0");
+            const part = value.length > 12 ? value.slice(0, 11) + "…" : value;
+            const name = ranking[index]?.name || "";
+            const detail = name.length > 8 ? name.slice(0, 8) + "…" : name;
+            return `{${index < 3 ? "leading" : "rank"}|${rank}}{part|${part}}${name ? `\n{indent| }{detail|${detail}}` : ""}`;
+          } } },
+        // 右侧分类轴仅承载数量，所有数值靠右对齐，不挤占短柱条。
+        { type: "category", inverse: true, position: "right", data: categories,
+          axisLine: { show: false }, axisTick: { show: false },
+          axisLabel: { interval: 0, margin: quantityWidth, align: "right", fontSize: 11,
+            rich: { value: { color: "#e0ebf2", fontWeight: 600 }, unit: { color: "#809cab", fontSize: 10 } },
+            formatter: (value, index) => `{value|${formatNumber(ranking[index].quantity)}}{unit| 件}` } }],
+      series: [{ name: "出货数量", type: "bar", barWidth: Math.max(5, Math.min(10, (height - 18) / 24)),
+        showBackground: true, backgroundStyle: { color: "rgba(169, 192, 209, .055)", borderRadius: 2 },
+        itemStyle: { color: params => params.dataIndex < 3 ? "#20cfa0" : "#3199b5", borderRadius: 2 },
+        emphasis: { itemStyle: { color: "#51e5bc" } },
         data: ranking.map(item => item.quantity) }],
       graphic: ranking.length ? undefined : { type: "text", left: "center", top: "middle",
         style: { text: "暂无出货记录", fill: "#a9c0d1", fontSize: 12 } },
