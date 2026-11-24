@@ -11,6 +11,28 @@
   let trendChart = null;
   let shipmentChart = null;
 
+  /** 对齐产量折线；chartModel 为完成默认布局的图表模型；按同源柱体中心更新折点，无返回值。 */
+  function alignTrendLinePoints(chartModel) {
+    chartModel.eachSeriesByType("line", line => {
+      if (!line.id.startsWith("line-")) return;
+      const bar = chartModel.queryComponents({ mainType: "series", id: line.id.replace(/^line-/, "bar-") })[0];
+      if (!bar || bar.subType !== "bar") return;
+      const points = line.getData().getLayout("points");
+      if (!points) return;
+      const bars = bar.getData();
+      for (let index = 0; index < bars.count(); index++) {
+        const layout = bars.getItemLayout(index);
+        // 使用实际柱宽兼容零产量、独立纵轴和窗口缩放，空数据仍保留断点。
+        if (layout && Number.isFinite(layout.x) && Number.isFinite(points[index * 2])) {
+          points[index * 2] = layout.x + layout.width / 2;
+        }
+      }
+    });
+  }
+
+  // 在默认柱与折线布局完成后执行，数据刷新和 resize 都会重新计算坐标。
+  if (window.echarts) echarts.registerLayout(echarts.PRIORITY.VISUAL.PROGRESSIVE_LAYOUT + 1, alignTrendLinePoints);
+
   /** 创建安全文本节点；tag、className、value 为元素类型、样式及内容；返回 DOM 元素。 */
   function node(tag, className = "", value = "") {
     const element = document.createElement(tag);

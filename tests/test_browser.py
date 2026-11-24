@@ -21,6 +21,27 @@ def set_trend_visibility(page, identifier, selected):
         expect(checkbox).not_to_be_checked()
 
 
+def assert_trend_points_centered(page):
+    """核对实际折线坐标；page 为大屏页面；逐点断言折线落在对应柱体中心，无返回值。"""
+    offsets = page.evaluate("""() => {
+      const chart = echarts.getInstanceByDom(document.querySelector('#newTrendChart'));
+      const model = chart.getModel();
+      const offsets = [];
+      model.eachSeriesByType('line', line => {
+        const bar = model.queryComponents({ mainType: 'series', id: line.id.replace(/^line-/, 'bar-') })[0];
+        const points = line.getData().getLayout('points');
+        const bars = bar.getData();
+        for (let index = 0; index < bars.count(); index++) {
+          const layout = bars.getItemLayout(index);
+          offsets.push(Math.abs(points[index * 2] - layout.x - layout.width / 2));
+        }
+      });
+      return offsets;
+    }""")
+    assert offsets
+    assert all(offset is not None and offset < 0.01 for offset in offsets), offsets
+
+
 @pytest.mark.parametrize('width,height', [(1440, 720), (1920, 1080), (375, 812)])
 def test_grouped_trend_keeps_each_line_and_standard(ui_context, live_server, client, app, clock, width, height):
     """验证并排柱与分线趋势；参数为隔离环境和视口；断言柱不重叠、折线同源、独立标准及提示去重。"""
@@ -79,6 +100,14 @@ def test_grouped_trend_keeps_each_line_and_standard(ui_context, live_server, cli
     assert chart['tooltip'].count('激光拼焊线B：') == 1
     assert '激光拼焊线A标准：1,000（件）' in chart['tooltip']
     assert '激光拼焊线B标准：1,500（件）' in chart['tooltip']
+    assert_trend_points_centered(page)
+    # 缩放后必须重新读取柱宽和位置，不能沿用初次渲染的像素偏移。
+    page.set_viewport_size({'width': width + 80, 'height': height + 40})
+    page.wait_for_timeout(250)
+    assert_trend_points_centered(page)
+    page.set_viewport_size({'width': width, 'height': height})
+    page.wait_for_timeout(250)
+    assert_trend_points_centered(page)
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     if width >= 1201:
         assert page.evaluate('document.documentElement.scrollHeight') == height
@@ -419,6 +448,7 @@ def test_editable_names_and_trend_selection_update_chart_at_1440(ui_context, liv
     assert all(not series.get('stack') for series in chart_series)
     assert [series['data'][-1] for series in chart_series] == [100, 200, 300, 400] * 2
     assert [series['yAxisIndex'] for series in chart_series] == [0, 1, 1, 1] * 2
+    assert_trend_points_centered(screen)
     colors = [series['itemStyle']['color'] for series in chart_series[:4]]
     assert len(set(colors)) == 4
     assert screen.evaluate('document.documentElement.scrollWidth') == 1440
@@ -434,6 +464,7 @@ def test_editable_names_and_trend_selection_update_chart_at_1440(ui_context, liv
     expect(screen.locator('#trendLegend > span')).to_have_count(1)
     expect(screen.locator('#trendTotal')).to_have_text('本月累计：200（件）')
     screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 2")
+    assert_trend_points_centered(screen)
     assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series[0].itemStyle.color") == colors[1]
     editor.reload()
     expect(editor.get_by_test_id('save-button')).to_be_enabled()
