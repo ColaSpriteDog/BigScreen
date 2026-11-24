@@ -100,11 +100,9 @@
         .chart-title { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; }
         .chart-heading { color: inherit; font: inherit; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .chart-legend { grid-column: 1 / -1; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 10px; color: var(--text-sub); font-weight: 400; }
-        .chart-legend > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; min-width: 0; max-width: calc((100% - 20px) / 3); }
-        /* 方块对应各产线堆叠柱，白色线段对应实际总产量折线。 */
+        .chart-legend > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; min-width: 0; max-width: calc((100% - 10px) / 2); }
+        /* 各产线颜色同时对应并排柱、实际折线和标准虚线。 */
         .legend-mark { flex-shrink: 0; width: 9px; height: 9px; background: var(--cyan); border-radius: 1px; }
-        .legend-mark.total { height: 2px; width: 14px; background: #f2f7fb; }
-        .legend-mark.total.dashed { background: repeating-linear-gradient(to right, #f2f7fb 0 4px, transparent 4px 6px) !important; }
         .legend-mark.secondary { background: var(--orange); }
         .trend-total { grid-column: 2; grid-row: 1; color: var(--text-sub); font-size: 10px; font-weight: 400; white-space: nowrap; }
         .chart-box { width: 100%; flex: 1; min-height: 0; contain: size; }

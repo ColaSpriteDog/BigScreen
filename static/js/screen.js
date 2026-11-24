@@ -248,14 +248,19 @@
     trendChart.setOption(trendOption, { notMerge: true });
     trendChart.resize();
     const groups = model.trendGroups(data.trend);
-    const labels = [...groups.map((group, index) => ({ name: "所选产线合计" + (groups.length > 1 ? model.unitLabel(group.unit) : ""),
-      className: "total" + (index ? " dashed" : ""), color: "#f2f7fb" })),
-      ...data.trend.series.map(series => ({ name: series.name + (groups.length > 1 ? model.unitLabel(series.unit) : ""), lineId: series.line_id, color: model.trendColor(series.line_id), className: "" }))];
+    // 每条产线共用一个图例入口，颜色同时对应并排柱、实际折线和标准虚线。
+    const labels = data.trend.series.map(series => {
+      const standard = data.lines.find(line => line.id === series.line_id)?.standard_qty;
+      const suffix = Number.isFinite(standard) && standard >= 0
+        ? ` · 标准 ${model.formatNumber(standard)}${model.unitLabel(series.unit || "件")}/日`
+        : groups.length > 1 ? model.unitLabel(series.unit) : "";
+      return { name: series.name + suffix, lineId: series.line_id, color: model.trendColor(series.line_id) };
+    });
     document.getElementById("trendLegend").replaceChildren(...labels.map(item => {
       const label = node("span");
       label.title = item.name;
       if (item.lineId !== undefined) label.dataset.lineId = item.lineId;
-      const mark = node("i", "legend-mark " + item.className);
+      const mark = node("i", "legend-mark");
       mark.style.backgroundColor = item.color;
       label.append(mark, node("span", "legend-label", item.name));
       return label;

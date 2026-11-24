@@ -21,6 +21,72 @@ def set_trend_visibility(page, identifier, selected):
         expect(checkbox).not_to_be_checked()
 
 
+@pytest.mark.parametrize('width,height', [(1440, 720), (1920, 1080), (375, 812)])
+def test_grouped_trend_keeps_each_line_and_standard(ui_context, live_server, client, app, clock, width, height):
+    """验证并排柱与分线趋势；参数为隔离环境和视口；断言柱不重叠、折线同源、独立标准及提示去重。"""
+    from demo_data import apply_demo_data
+    from tests.test_api import production_payload, settings_payload
+
+    # 复现月末末日突增的场景，核对上升折线与柱体不被标准标签遮挡。
+    clock['now'] = clock['now'].replace(day=24)
+    apply_demo_data(app.config['DATABASE'], clock['now'])
+    config = settings_payload(client)
+    config['lines'][2]['standard_qty'] = 1000
+    config['lines'][3]['standard_qty'] = 1500
+    assert client.put('/api/settings', json=config).status_code == 200
+    quantities = [1001, 1014, 1104, 728, 884, 1022, 1041, 1070, 1054, 995, 1070, 1057, 1047, 999, 978, 1051, 1080, 1079, 1042, 1055, 972, 1046, 1088, 1051]
+    for day, amount in enumerate(quantities, 1):
+        date = f'2026-11-{day:02d}'
+        draft = production_payload(client, date)
+        draft['lines'][2].update(actual_qty=amount, defect_qty=0)
+        draft['lines'][3].update(actual_qty=1430 if day == 24 else 0, defect_qty=0)
+        assert client.put('/api/production/' + date, json=draft).status_code == 200
+
+    page = ui_context.new_page()
+    page.set_viewport_size({'width': width, 'height': height})
+    errors = []
+    page.on('pageerror', lambda error: errors.append(str(error)))
+    page.goto(live_server + '/screen')
+    expect(page.locator('#connectionStatus')).to_have_text('数据已同步')
+    expect(page.locator('#trendLegend > span')).to_have_count(2)
+    expect(page.locator('#trendLegend [data-line-id="3"]')).to_contain_text('标准 1,000（件）/日')
+    expect(page.locator('#trendLegend [data-line-id="4"]')).to_contain_text('标准 1,500（件）/日')
+    chart = page.evaluate("""() => {
+      const chart = echarts.getInstanceByDom(document.querySelector('#newTrendChart'));
+      const option = chart.getOption();
+      const dataIndex = option.xAxis[0].data.length - 1;
+      const layouts = [0, 1].map(index => chart.getModel().getSeriesByIndex(index).getData().getItemLayout(dataIndex));
+      const params = option.series.map(series => ({ axisValue: option.xAxis[0].data[dataIndex], seriesId: series.id, seriesName: series.name, value: series.data[dataIndex] }));
+      // 检查真实渲染层级，避免仅配置正确但标准线仍覆盖柱体。
+      const standards = chart.getZr().storage.getDisplayList().filter(el => el.type === 'ec-line' && el.style.lineDash === 'dashed');
+      return { series: option.series, layouts, tooltip: option.tooltip[0].formatter(params), standardLayers: standards.map(el => el.z) };
+    }""")
+    assert [series['type'] for series in chart['series']] == ['bar', 'bar', 'line', 'line']
+    assert all(not series.get('stack') for series in chart['series'])
+    for bar, line in zip(chart['series'][:2], chart['series'][2:]):
+        assert bar['data'] == line['data']
+        assert bar['itemStyle']['color'] == line['lineStyle']['color'] == line['markLine']['lineStyle']['color']
+    assert [series['markLine']['data'][0]['yAxis'] for series in chart['series'][2:]] == [1000, 1500]
+    assert chart['series'][0]['label']['position'] == 'top'
+    assert chart['series'][1]['label']['position'] == 'inside'
+    assert all(series['markLine']['label']['show'] is False for series in chart['series'][2:])
+    assert chart['standardLayers'] == [5, 5]
+    assert all(layer < series['z'] for layer in chart['standardLayers'] for series in chart['series'][:2])
+    first, second = chart['layouts']
+    assert first['width'] > 0 and second['width'] > 0
+    assert first['x'] + first['width'] <= second['x']
+    assert chart['tooltip'].count('激光拼焊线A：') == 1
+    assert chart['tooltip'].count('激光拼焊线B：') == 1
+    assert '激光拼焊线A标准：1,000（件）' in chart['tooltip']
+    assert '激光拼焊线B标准：1,500（件）' in chart['tooltip']
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    if width >= 1201:
+        assert page.evaluate('document.documentElement.scrollHeight') == height
+    assert not errors, errors
+    Path('output/playwright').mkdir(parents=True, exist_ok=True)
+    page.locator('.chart-panel').screenshot(path=f'output/playwright/trend-per-line-{width}.png')
+
+
 def test_editor_save_updates_screen_and_survives_reload(ui_context, live_server):
     """验证完整保存链路；上下文与真实服务为参数；断言库存落库、大屏更新和刷新持久化。"""
     screen = ui_context.new_page()
@@ -75,7 +141,7 @@ def test_production_and_sales_forms_update_actual_charts(ui_context, live_server
     expect(screen.locator('#completionRate')).to_have_text('70%')
     expect(screen.locator('.chart-heading')).to_have_text('当月产线产量趋势图')
     expect(screen.locator('#trendTotal')).to_have_text('本月累计：700（件）')
-    screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.find(item=>item.name==='所选产线合计').data.at(-1) === 700")
+    screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.filter(item=>item.type==='line').map(item=>item.data.at(-1)).join(',') === '300,400'")
     assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().xAxis[0].data") == [f'2026-11-{day:02d}' for day in range(1, 22)]
     Path('output/playwright').mkdir(parents=True, exist_ok=True)
     editor.screenshot(path='output/playwright/editor-production.png', full_page=True)
@@ -344,15 +410,15 @@ def test_editable_names_and_trend_selection_update_chart_at_1440(ui_context, liv
         editor.get_by_role('textbox', name=f'产线名称 {index:02d}', exact=True).fill(prefix + '生产线' * 6)
         set_trend_visibility(editor, index, True)
     editor.get_by_test_id('save-button').click()
-    expect(screen.locator('#trendLegend > span')).to_have_count(6)
+    expect(screen.locator('#trendLegend > span')).to_have_count(4)
     expect(screen.locator('#trendTotal')).to_have_text('本月累计：100（米） / 900（件）')
     expect(screen.locator('.line-card[data-line-id="1"] .line-header')).to_contain_text('一号生产线')
-    screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 6")
+    screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 8")
     chart_series = screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series")
-    assert [series['type'] for series in chart_series] == ['bar'] * 4 + ['line'] * 2
-    assert chart_series[0]['stack'] != chart_series[1]['stack']
-    assert len({series['stack'] for series in chart_series[1:4]}) == 1
-    assert [series['data'][-1] for series in chart_series] == [100, 200, 300, 400, 100, 900]
+    assert [series['type'] for series in chart_series] == ['bar'] * 4 + ['line'] * 4
+    assert all(not series.get('stack') for series in chart_series)
+    assert [series['data'][-1] for series in chart_series] == [100, 200, 300, 400] * 2
+    assert [series['yAxisIndex'] for series in chart_series] == [0, 1, 1, 1] * 2
     colors = [series['itemStyle']['color'] for series in chart_series[:4]]
     assert len(set(colors)) == 4
     assert screen.evaluate('document.documentElement.scrollWidth') == 1440
@@ -365,7 +431,7 @@ def test_editable_names_and_trend_selection_update_chart_at_1440(ui_context, liv
     for index in [1, 3, 4]:
         set_trend_visibility(editor, index, False)
     editor.get_by_test_id('save-button').click()
-    expect(screen.locator('#trendLegend > span')).to_have_count(2)
+    expect(screen.locator('#trendLegend > span')).to_have_count(1)
     expect(screen.locator('#trendTotal')).to_have_text('本月累计：200（件）')
     screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series.length === 2")
     assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption().series[0].itemStyle.color") == colors[1]
@@ -390,7 +456,7 @@ def test_editor_requires_at_least_one_trend_line(ui_context, live_server):
     editor.get_by_test_id('save-button').click()
     expect(editor.locator('.request-error')).to_contain_text('趋势图至少选择一条产线')
     expect(editor.get_by_test_id('save-status')).to_contain_text('处修改未保存')
-    expect(screen.locator('#trendLegend > span')).to_have_count(3)
+    expect(screen.locator('#trendLegend > span')).to_have_count(2)
 
 
 def test_slow_module_loading_blocks_input_until_snapshot_is_applied(ui_context, live_server, monkeypatch):
@@ -432,7 +498,7 @@ def test_demo_screen_full_data_alignment_and_overflow(ui_context, live_server, a
     expect(page.locator('#rawTableBody tr')).to_have_count(8)
     expect(page.locator('#semiTableBody tr')).to_have_count(10)
     expect(page.locator('#shippedQty')).to_have_text('37,400')
-    expect(page.locator('#trendLegend > span')).to_have_count(3)
+    expect(page.locator('#trendLegend > span')).to_have_count(2)
     expect(page.locator('#rawTableBody tr').first.locator('td')).to_have_count(5)
     expect(page.locator('#rawTableHeader')).not_to_contain_text('仓库')
     expect(page.locator('#rawTableHeader')).to_contain_text('剩余数量（卷）')

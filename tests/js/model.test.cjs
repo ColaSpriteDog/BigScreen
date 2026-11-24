@@ -43,18 +43,21 @@ test('不同库存单位分别展示', () => {
   assert.equal(model.inventorySummary([{ quantity: 0.5, unit: '卷' }, { quantity: 10, unit: '张' }]), '0.5（卷） / 10（张）');
 });
 
-test('趋势图按产线堆叠且仅使用实际总产量折线，保留零值', () => {
+test('趋势图按产线并排且分别显示实际产量折线，保留零值', () => {
   const option = model.buildTrendOption({ dates: ['2026-11-20', '2026-11-21'], totals: [0, 10], series: [{ line_id: 3, name: 'A线', data: [0, 0] }, { line_id: 4, name: 'B线', data: [0, 10] }] }, true);
   assert.equal(option.series[0].type, 'bar');
-  assert.equal(option.series[0].stack, 'production-件');
+  assert.equal(option.series[0].stack, undefined);
   assert.deepEqual(option.series[0].data, [0, 0]);
   assert.equal(option.series[1].type, 'bar');
-  assert.equal(option.series[1].stack, option.series[0].stack);
+  assert.equal(option.series[1].stack, undefined);
   assert.deepEqual(option.series[1].data, [0, 10]);
   assert.equal(option.series[2].type, 'line');
-  assert.equal(option.series[2].name, '所选产线合计');
-  assert.deepEqual(option.series[2].data, [0, 10]);
-  assert.equal(option.series.filter(series => series.type === 'line').length, 1);
+  assert.equal(option.series[2].name, 'A线');
+  assert.deepEqual(option.series[2].data, [0, 0]);
+  assert.deepEqual(option.series[3].data, [0, 10]);
+  assert.equal(option.series.filter(series => series.type === 'line').length, 2);
+  assert.equal(option.series[2].lineStyle.color, option.series[0].itemStyle.color);
+  assert.equal(option.series[3].lineStyle.color, option.series[1].itemStyle.color);
   assert.equal(option.tooltip.renderMode, 'richText');
 });
 
@@ -67,33 +70,43 @@ test('四条产线颜色固定且选择变化或改名后不改变', () => {
   const chosen = model.buildTrendOption({ ...trend, totals: [200], series: [{ line_id: 2, name: '改名后的产线', data: [200] }] });
   assert.equal(chosen.series[0].itemStyle.color, all.series[1].itemStyle.color);
   assert.equal(chosen.series[0].itemStyle.color, model.trendColor(2));
-  assert.equal(chosen.series[1].id, 'selected-total');
+  assert.equal(chosen.series[1].id, 'line-2');
   assert.deepEqual(chosen.series[1].data, [200]);
 });
 
-test('堆叠柱与合计折线提示分别显示，标准日产量线只绘制一次', () => {
+test('各产线单独绘制标准虚线，柱与折线的提示不重复', () => {
   const option = model.buildTrendOption({ dates: ['2026-11-21'], totals: [100], series: [
     { line_id: 3, name: 'A线', data: [100] }, { line_id: 4, name: 'B线', data: [0] },
-  ] }, false, [{ id: 3, standard_qty: 150 }, { id: 4, standard_qty: 200 }]);
-  assert.equal(option.series.filter(series => series.markLine).length, 1);
-  assert.equal(option.series[2].markLine.data[0].yAxis, 350);
-  const tooltip = option.tooltip.formatter(option.series.map(series => ({ axisValue: '2026-11-21', seriesName: series.name, value: series.data[0] })));
-  assert.equal(tooltip, '2026-11-21\nA线：100（件）\nB线：0（件）\n所选产线合计：100（件）\n标准产量：350（件）');
+  ] }, false, [{ id: 3, standard_qty: 1000 }, { id: 4, standard_qty: 1500 }]);
+  assert.deepEqual(option.series.filter(series => series.markLine).map(series => series.markLine.data[0].yAxis), [1000, 1500]);
+  assert.equal(option.series[2].markLine.lineStyle.color, option.series[0].itemStyle.color);
+  assert.equal(option.series[3].markLine.lineStyle.color, option.series[1].itemStyle.color);
+  assert.equal(option.series[0].label.position, 'top');
+  assert.equal(option.series[1].label.position, 'inside');
+  // 标准参考线保留颜色，但必须位于所有实际柱体下方。
+  for (const marked of option.series.filter(series => series.markLine)) {
+    assert.ok(option.series.filter(series => series.type === 'bar').every(bar => marked.markLine.z < bar.z));
+    assert.equal(marked.markLine.lineStyle.width, 1);
+    assert.equal(marked.markLine.lineStyle.opacity, 0.55);
+  }
+  assert.equal(option.yAxis[0].max({ max: 100 }), 1650);
+  const tooltip = option.tooltip.formatter(option.series.map(series => ({ axisValue: '2026-11-21', seriesId: series.id, seriesName: series.name, value: series.data[0] })));
+  assert.equal(tooltip, '2026-11-21\nA线：100（件）\nB线：0（件）\nA线标准：1,000（件）\nB线标准：1,500（件）');
 });
 
-test('B线日报全空时标准只计A线，录入零或正产量后恢复合计', () => {
+test('B线日报全空时暂不绘制标准线，录入零或正产量后独立显示', () => {
   // 空白由接口标记保留，柱图中的零值不能用于判断产线是否已录入。
   for (const quantity of [null, 0, 80]) {
     const option = model.buildTrendOption({ dates: ['2026-11-21'], totals: [100 + (quantity || 0)], series: [
       { line_id: 3, name: 'A线', data: [100], has_data: true },
       { line_id: 4, name: 'B线', data: [quantity || 0], has_data: quantity !== null },
     ] }, false, [{ id: 3, standard_qty: 150 }, { id: 4, standard_qty: 200 }]);
-    const standard = quantity === null ? 150 : 350;
-    assert.equal(option.series.filter(series => series.markLine).length, 1);
-    assert.equal(option.series[2].markLine.data[0].yAxis, standard);
-    assert.equal(option.yAxis[0].max({ max: 100 }), quantity === null ? 165 : 385);
+    assert.equal(option.series.filter(series => series.markLine).length, quantity === null ? 1 : 2);
+    assert.equal(option.series[2].markLine.data[0].yAxis, 150);
+    assert.equal(option.series[3].markLine?.data[0].yAxis, quantity === null ? undefined : 200);
+    assert.equal(option.yAxis[0].max({ max: 100 }), quantity === null ? 165 : 220);
     const tooltip = option.tooltip.formatter(option.series.map(series => ({ axisValue: '2026-11-21', seriesId: series.id, seriesName: series.name, value: series.data[0] })));
-    assert.ok(tooltip.endsWith(`标准产量：${standard}（件）`));
+    assert.equal(tooltip.includes('B线标准：200（件）'), quantity !== null);
     assert.deepEqual(option.series[1].data, [quantity || 0]);
   }
 });
@@ -104,25 +117,58 @@ test('所选产线日报全空时不绘制标准线，已有日报但缺标准�
       { line_id: 3, name: 'A线', data: [0], has_data },
     ] }, false, [{ id: 3, standard_qty: has_data ? null : 150 }]);
     assert.equal(option.series[1].markLine, undefined);
-    assert.ok(!option.tooltip.formatter([]).includes('标准产量'));
+    assert.ok(!option.tooltip.formatter([]).includes('标准'));
     assert.equal(option.yAxis[0].max({ max: 0 }), 1.1);
   }
 });
 
-test('米与件分别堆叠、分别求和并使用独立纵轴与提示单位', () => {
+test('米与件按产线并排，柱与折线使用相同纵轴及提示单位', () => {
   const option = model.buildTrendOption({ dates: ['2026-11-01'], series: [
     { line_id: 1, name: '落料', unit: '米', data: [120.5] },
     { line_id: 2, name: '点焊', unit: '件', data: [100] },
     { line_id: 3, name: '拼焊', unit: '件', data: [200] },
   ], groups: [{ unit: '米', totals: [120.5] }, { unit: '件', totals: [300] }] }, false);
   assert.deepEqual(option.yAxis.map(axis => axis.name), ['产量（米）', '产量（件）']);
-  assert.notEqual(option.series[0].stack, option.series[1].stack);
-  assert.equal(option.series[1].stack, option.series[2].stack);
+  assert.ok(option.series.every(series => series.stack === undefined));
   assert.equal(option.series[0].yAxisIndex, 0);
   assert.equal(option.series[1].yAxisIndex, 1);
-  assert.deepEqual(option.series.slice(3).map(series => series.data), [[120.5], [300]]);
+  assert.deepEqual(option.series.slice(3).map(series => series.data), [[120.5], [100], [200]]);
+  assert.deepEqual(option.series.slice(3).map(series => series.yAxisIndex), [0, 1, 1]);
   const text = option.tooltip.formatter(option.series.map(series => ({ axisValue: '2026-11-01', seriesId: series.id, seriesName: series.name, value: series.data[0] })));
   assert.match(text, /落料：120.5（米）/);
   assert.match(text, /拼焊：200（件）/);
   assert.equal(option.series[0].label.formatter({ value: 120.5 }), '120.5');
+});
+
+test('同单位同标准共用标线且不在绘图区覆盖标签，不同单位仍使用各自纵轴', () => {
+  const option = model.buildTrendOption({ dates: ['2026-11-21'], series: [
+    { line_id: 1, name: '落料', unit: '米', data: [800] },
+    { line_id: 3, name: 'A线', unit: '件', data: [900] },
+    { line_id: 4, name: 'B线', unit: '件', data: [950] },
+  ], groups: [{ unit: '米', totals: [800] }, { unit: '件', totals: [1850] }] }, false,
+  [{ id: 1, standard_qty: 1000 }, { id: 3, standard_qty: 1000 }, { id: 4, standard_qty: 1000 }]);
+  const marked = option.series.filter(series => series.markLine);
+  assert.equal(marked.length, 2);
+  assert.deepEqual(marked.map(series => series.yAxisIndex), [0, 1]);
+  assert.ok(marked.every(series => series.markLine.label.show === false));
+  assert.ok(option.series[5].markLine === undefined);
+});
+
+test('缺失或非法标准不影响其他产线，零标准仍可显示', () => {
+  for (const value of [null, undefined, -1, NaN, Infinity]) {
+    const option = model.buildTrendOption({ dates: ['2026-11-21'], series: [
+      { line_id: 3, name: 'A线', data: [0] }, { line_id: 4, name: 'B线', data: [0] },
+    ], totals: [0] }, true, [{ id: 3, standard_qty: value }, { id: 4, standard_qty: 0 }]);
+    assert.equal(option.series[2].markLine, undefined);
+    assert.equal(option.series[3].markLine.data[0].yAxis, 0);
+    assert.equal(option.yAxis[0].max({ max: 0 }), 1.1);
+  }
+});
+
+test('产线同名时按ID保留各自产量，提示仅去除各线重复的折线数据', () => {
+  const option = model.buildTrendOption({ dates: ['2026-11-21'], totals: [300], series: [
+    { line_id: 3, name: '生产线', data: [100] }, { line_id: 4, name: '生产线', data: [200] },
+  ] });
+  const text = option.tooltip.formatter(option.series.map(series => ({ axisValue: '2026-11-21', seriesId: series.id, seriesName: series.name, value: series.data[0] })));
+  assert.equal(text, '2026-11-21\n生产线：100（件）\n生产线：200（件）');
 });

@@ -54,7 +54,7 @@ def test_production_preview_cancel_save_and_mixed_units(ui_context, live_server,
     expect(screen.locator('.line-card[data-line-id="1"] .data-list > div').nth(2)).to_have_text('本月产量（米）100.13')
     chart = screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption()")
     assert [axis['name'] for axis in chart['yAxis']] == ['产量（米）', '产量（件）']
-    assert len(chart['series']) == 6
+    assert len(chart['series']) == 8
     assert screen.evaluate('document.documentElement.scrollWidth <= innerWidth')
     screen.screenshot(path=f'output/playwright/production-import-units-{width}.png', full_page=width < 1201)
     first = client.get('/api/editor?date=2026-11-01').get_json()['production']['lines']
