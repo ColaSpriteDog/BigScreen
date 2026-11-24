@@ -203,6 +203,18 @@ h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spac
 .process-setting img { flex: 0 0 90px; width: 90px; height: 75px; object-fit: contain; border-radius: 4px; background: #10252f; }
 .process-setting strong { font-size: 16px; white-space: nowrap; }
 .process-setting .el-select { min-width: 0; max-width: 195px; margin-left: auto; }
+/* 仅在字段存在问题时显示反馈，正常记录保持紧凑。 */
+.production-field .field-feedback { margin: 6px 0 0; font-size: 12px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; color: #925500; }
+.production-field.error .field-feedback { color: #b13f4c; }
+.production-field.error .el-input__wrapper { box-shadow: 0 0 0 1px #b13f4c inset; }
+.production-field.warning .el-input__wrapper { box-shadow: 0 0 0 1px #bb8738 inset; }
+.oee-issues-trigger.el-button { display: block; flex-basis: 100%; justify-content: flex-start; margin: 7px 0 0; padding: 0; white-space: normal; text-align: left; line-height: 1.5; height: auto; }
+.oee-issue-list { list-style: none; padding: 0; margin: 0; }
+.oee-issue-list li + li { border-top: 1px solid var(--editor-border); }
+.oee-issue-list button { display: grid; gap: 7px; width: 100%; padding: 14px 8px; border: 0; background: transparent; color: var(--editor-ink); text-align: left; font: inherit; cursor: pointer; }
+.oee-issue-list button span { color: #925500; line-height: 1.6; }
+.oee-issue-list button.error span { color: #b13f4c; }
+.oee-issue-list button:hover, .oee-issue-list button:focus-visible { background: var(--editor-tint); }
 .request-error { margin: 4px 0 16px; }
 .request-error:focus { outline: 2px solid #b64755; outline-offset: 3px; }
 .el-table__empty-block { min-height: 90px; }

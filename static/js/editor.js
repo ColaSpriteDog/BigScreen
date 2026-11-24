@@ -45,6 +45,7 @@
         ],
         selectedDate: "", loadedDate: "", selectedMonth: "", loadedMonth: "", businessDate: "", timezone: "UTC",
         serverTime: "", errorMessage: "", savedAt: "", version: 0,
+        savedOeeIssues: [], oeeIssuesVisible: false,
         versions: { production: 0, inventory: 0, sales: 0, settings: 0 },
         dirty: { production: false, inventory: false, sales: false, settings: false }, keyCounter: 0, partSearch: "",
         baselines: {}, employees: { items: [] }, currentEmployee: null,
@@ -55,6 +56,13 @@
         sales: { order_qty: null, items: [] }, settingsForm: { timezone: "UTC", safety_start_date: null, lines: [], processes: [] } };
     },
     computed: {
+      /** 检查当前日报草稿；无参数；返回即时更新的错误和 OEE 缺项。 */
+      currentProductionIssues() { return this.production.lines.flatMap(line => BoardModel.productionIssues(line, this.loadedDate)); },
+      /** 合并本月问题与当前草稿；无参数；返回按日期产线排序的问题，修正当前行后立即移除旧提示。 */
+      monthlyOeeIssues() {
+        return [...this.savedOeeIssues.filter(issue => issue.date !== this.loadedDate), ...this.currentProductionIssues.filter(issue => [3, 4].includes(issue.line_id))]
+          .sort((first, second) => first.date.localeCompare(second.date) || first.line_id - second.line_id);
+      },
       /** 读取当前导航标题与保存文案；无参数；返回选中模块的配置。 */
       currentModule() { return this.modules.find(item => item.id === this.activeTab); },
       /** 预览所选日拼焊指标；无参数；返回 A/B 日报数量、合格率及每小时产出，草稿改动即时更新。 */
@@ -127,6 +135,24 @@
       },
     },
     methods: {
+      /** 读取字段提示；row/field 定位当前日报输入；返回问题或空值。 */
+      productionFieldIssue(row, field) { return this.currentProductionIssues.find(issue => issue.line_id === row.id && issue.field === field); },
+      /** 定位问题字段；issue 为日期、产线及字段信息；返回跳转 Promise，沿用已有草稿保护。 */
+      async focusOeeIssue(issue) {
+        this.oeeIssuesVisible = false;
+        if (issue.field === "theoretical_max_per_hour") {
+          await this.switchModule("settings");
+          if (this.activeTab !== "settings" || !this.moduleReady) return;
+        } else if (issue.date !== this.loadedDate) {
+          this.selectedDate = issue.date;
+          await this.changeDate(issue.date);
+          if (this.loadedDate !== issue.date || !this.moduleReady) return;
+        }
+        await this.$nextTick();
+        const prefixes = { planned_hours: "planned-hours-", abnormal_hours: "abnormal-hours-", defect_qty: "defect-", theoretical_max_per_hour: "theoretical-max-" };
+        const input = document.querySelector(`[data-testid="${prefixes[issue.field]}${issue.line_id}"] input`);
+        if (input) { input.scrollIntoView({ block: "center", inline: "center", behavior: "instant" }); input.focus({ preventScroll: true }); }
+      },
       /** 格式化数值；value 为字段值；返回展示文本。 */
       fmt(value) { return BoardModel.formatNumber(value); },
       /** 读取吨数输入；value 为千克重量；返回吨数，保留原字段避免改写既有数据。 */
@@ -194,6 +220,7 @@
         this.serverTime = snapshot.server_time;
         this.savedAt = snapshot.version ? snapshot.updated_at : "";
         if (initial || module === "production") {
+          this.savedOeeIssues = clone(snapshot.oee_issues || []);
           this.production = clone(snapshot.production);
           this.production.downtimes = this.keyed(snapshot.production.downtimes);
           this.productionImportMonth = this.loadedProductionMonth = snapshot.production.monthly_plan.month;
@@ -342,6 +369,14 @@
       /** 保存当前模块；无参数；返回 Promise，失败保留全部草稿并展示错误。 */
       async saveModule() {
         if (this.saving || !this.moduleReady) return;
+        if (this.activeTab === "production") {
+          const issue = this.currentProductionIssues.find(item => item.severity === "error");
+          if (issue) {
+            this.errorMessage = issue.name + "：" + issue.message;
+            await this.focusOeeIssue(issue);
+            return;
+          }
+        }
         this.saving = true;
         this.errorMessage = "";
         try {

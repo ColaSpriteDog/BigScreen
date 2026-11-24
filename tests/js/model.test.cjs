@@ -2,6 +2,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const model = require('../../static/js/model.js');
 
+test('日报矛盾即时拦截，OEE 缺项保留未知值，零产量全天停机有效', () => {
+  const line = { id: 4, name: 'B线', actual_qty: 510, defect_qty: 0, planned_hours: 20.4, abnormal_hours: 20.4, theoretical_max_per_hour: 60 };
+  assert.ok(model.productionIssues(line, '2026-11-24').some(issue => issue.severity === 'error' && issue.field === 'abnormal_hours'));
+  const unknown = { ...line, abnormal_hours: null, defect_qty: null };
+  assert.deepEqual(model.productionIssues(unknown, '2026-11-24').map(issue => issue.field), ['abnormal_hours', 'defect_qty']);
+  assert.equal(unknown.abnormal_hours, null);
+  assert.deepEqual(model.productionIssues({ ...line, actual_qty: 0 }, '2026-11-24'), []);
+  assert.deepEqual(model.productionIssues({ ...line, actual_qty: null }, '2026-11-24'), []);
+  assert.ok(model.productionIssues({ ...line, planned_hours: 0, abnormal_hours: null }, '2026-11-24').some(issue => issue.field === 'planned_hours' && issue.severity === 'error'));
+});
+
 test('出货排名在件号下显示名称，悬浮提示保留完整名称，空名称不占行', () => {
   const ranking = [{ part_no: 'LP000365', name: '门环左件', quantity: 8200 },
     { part_no: 'LP000366', name: '', quantity: 7300 }];

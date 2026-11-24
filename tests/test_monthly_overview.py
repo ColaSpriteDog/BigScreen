@@ -102,7 +102,7 @@ def test_average_output_uses_total_reported_line_hours(client):
 def test_average_output_handles_missing_and_zero_hours(client):
     """验证工时边界；client 为客户端；断言无日报、零工时、零产量和小数工时的每小时产出。"""
     assert client.get('/api/dashboard').get_json()['overview']['average_output'] is None
-    save_overview(client, '2026-11-21', first=25, first_hours=0)
+    save_overview(client, '2026-11-21', first=0, first_hours=0)
     assert client.get('/api/dashboard').get_json()['overview']['average_output'] is None
     save_overview(client, '2026-11-21', first=25, first_hours=2.5)
     assert client.get('/api/dashboard').get_json()['overview']['average_output'] == 10

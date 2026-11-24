@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>大屏数据编辑</title>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
-  <link rel="stylesheet" href="/static/css/editor.css?v=20261124-production-plan">
+  <link rel="stylesheet" href="/static/css/editor.css?v=20261124-oee-guidance">
   <script defer src="/static/vendor/vue.global.prod.js"></script>
   <script defer src="/static/vendor/element-plus.js"></script>
   <script defer src="/static/vendor/element-plus-zh-cn.js"></script>
-  <script defer src="/static/js/model.js?v=20261124-trend-per-line"></script>
+  <script defer src="/static/js/model.js?v=20261124-oee-guidance"></script>
   <script defer src="/static/js/api.js?v=20261123-import"></script>
-  <script defer src="/static/js/editor.js?v=20261124-semi-visibility"></script>
+  <script defer src="/static/js/editor.js?v=20261124-oee-guidance"></script>
 </head>
 <body>
   <div id="bootStatus" role="status">正在加载编辑页面…</div>
@@ -61,11 +61,11 @@
               <el-table-column prop="code" label="编号" width="60"></el-table-column><el-table-column prop="name" label="产线" min-width="190"><template #default="scope"><span class="line-name"><i class="line-dot" :style="{backgroundColor:lineColor(scope.row.id)}" aria-hidden="true"></i><strong>{{scope.row.name}}</strong></span></template></el-table-column>
               <el-table-column label="单位" width="65"><template #default="scope">{{scope.row.unit}}</template></el-table-column>
               <el-table-column label="标准产量" min-width="120"><template #default="scope"><span class="number-text">{{fmt(scope.row.standard_qty)}}</span></template></el-table-column>
-              <el-table-column prop="planned_hours" label="计划生产时长（小时）" min-width="175"><template #default="scope"><el-input-number v-model="scope.row.planned_hours" :min="0" :max="24" :precision="2" :step="0.5" :controls="false" @change="markDirty('production')" :aria-label="'计划生产时长 '+scope.row.name" :data-testid="'planned-hours-'+scope.row.id"></el-input-number></template></el-table-column>
+              <el-table-column prop="planned_hours" label="计划生产时长（小时）" min-width="175"><template #default="scope"><div class="production-field" :class="productionFieldIssue(scope.row,'planned_hours')?.severity"><el-input-number v-model="scope.row.planned_hours" :min="0" :max="24" :precision="2" :step="0.5" :controls="false" @change="markDirty('production')" :aria-label="'计划生产时长 '+scope.row.name" :data-testid="'planned-hours-'+scope.row.id"></el-input-number><p v-if="productionFieldIssue(scope.row,'planned_hours')" class="field-feedback">{{productionFieldIssue(scope.row,'planned_hours').message}}</p></div></template></el-table-column>
               <el-table-column prop="actual_qty" label="今日产量" min-width="160"><template #default="scope"><el-input-number v-model="scope.row.actual_qty" :min="0" :max="1000000000000" :precision="scope.row.unit==='米'?undefined:0" :controls="false" @change="markDirty('production')" :aria-label="'今日产量 '+scope.row.name" :data-testid="'actual-'+scope.row.id"></el-input-number></template></el-table-column>
-              <el-table-column prop="defect_qty" label="不良数量" min-width="150"><template #default="scope"><el-input-number v-model="scope.row.defect_qty" :min="0" :max="1000000000000" :precision="scope.row.unit==='米'?undefined:0" :controls="false" @change="markDirty('production')" :aria-label="'不良数量 '+scope.row.name" :data-testid="'defect-'+scope.row.id"></el-input-number></template></el-table-column>
+              <el-table-column prop="defect_qty" label="不良数量" min-width="150"><template #default="scope"><div class="production-field" :class="productionFieldIssue(scope.row,'defect_qty')?.severity"><el-input-number v-model="scope.row.defect_qty" :min="0" :max="1000000000000" :precision="scope.row.unit==='米'?undefined:0" :controls="false" @change="markDirty('production')" :aria-label="'不良数量 '+scope.row.name" :data-testid="'defect-'+scope.row.id"></el-input-number><p v-if="productionFieldIssue(scope.row,'defect_qty')" class="field-feedback">{{productionFieldIssue(scope.row,'defect_qty').message}}</p></div></template></el-table-column>
               <el-table-column label="不良率" width="90"><template #default="scope"><span class="number-text">{{percent(rate(scope.row.defect_qty,scope.row.actual_qty))}}</span></template></el-table-column>
-              <el-table-column prop="abnormal_hours" label="异常停机工时（小时）" min-width="175"><template #default="scope"><el-input-number v-model="scope.row.abnormal_hours" :min="0" :max="scope.row.planned_hours" :precision="2" :controls="false" @change="markDirty('production')" :aria-label="'异常停机工时 '+scope.row.name" :data-testid="'abnormal-hours-'+scope.row.id"></el-input-number></template></el-table-column>
+              <el-table-column prop="abnormal_hours" label="异常停机工时（小时）" min-width="175"><template #default="scope"><div class="production-field" :class="productionFieldIssue(scope.row,'abnormal_hours')?.severity"><el-input-number v-model="scope.row.abnormal_hours" :min="0" :max="scope.row.planned_hours" :precision="2" :controls="false" @change="markDirty('production')" :aria-label="'异常停机工时 '+scope.row.name" :data-testid="'abnormal-hours-'+scope.row.id"></el-input-number><p v-if="productionFieldIssue(scope.row,'abnormal_hours')" class="field-feedback" :data-testid="'abnormal-feedback-'+scope.row.id">{{productionFieldIssue(scope.row,'abnormal_hours').message}}</p></div></template></el-table-column>
               <el-table-column label="当前状态" width="115"><template #default="scope"><el-tag class="status-pill" :type="scope.row.status==='running'?'success':scope.row.status==='fault'?'danger':'warning'" effect="light">{{scope.row.status_label}}</el-tag></template></el-table-column>
               <el-table-column label="运行率" width="105"><template #default="scope"><strong class="number-text">{{percent(scope.row.runtime_rate)}}</strong></template></el-table-column>
               <el-table-column label="停机操作" min-width="130"><template #default="scope"><el-button v-if="scope.row.open_downtime_id" type="success" plain size="small" @click="finishStop(scope.row)" :disabled="selectedDate!==businessDate||saving">恢复运行</el-button><el-dropdown v-else-if="scope.row.status==='running'" @command="kind=>startStop(scope.row,kind)" :disabled="selectedDate!==businessDate||saving"><el-button plain size="small" :disabled="selectedDate!==businessDate||saving">开始停机 ▾</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="stopped">停机</el-dropdown-item><el-dropdown-item command="maintenance">维护</el-dropdown-item><el-dropdown-item command="fault">故障</el-dropdown-item></el-dropdown-menu></template></el-dropdown><el-button v-else plain size="small" @click="scrollToDowntimes">修改时段</el-button></template></el-table-column>
@@ -76,7 +76,7 @@
           <el-form label-position="top" class="metric-form" @submit.prevent>
             <el-form-item label="总计划产量（件）"><span class="number-text" data-testid="overview-planned">{{fmt(productionTotals.planned_qty)}}</span></el-form-item>
             <el-form-item label="实际完成（件）"><span class="number-text" data-testid="overview-actual">{{fmt(productionTotals.actual_qty)}}</span></el-form-item>
-            <el-form-item label="设备综合效率（%）"><span class="number-text" data-testid="overview-oee">{{percent(productionTotals.oee_percent)}}</span></el-form-item>
+            <el-form-item label="设备综合效率（%）"><span class="number-text" data-testid="overview-oee">{{percent(productionTotals.oee_percent)}}</span><el-button v-if="monthlyOeeIssues.length" link type="warning" class="oee-issues-trigger" data-testid="oee-issues-trigger" @click="oeeIssuesVisible=true">本月 {{monthlyOeeIssues.length}} 项待核对，查看</el-button></el-form-item>
             <el-form-item label="品质合格率（%）"><span class="number-text" data-testid="overview-quality">{{percent(productionTotals.quality_percent)}}</span></el-form-item>
             <el-form-item label="平均产出（件/小时）"><span class="number-text" data-testid="overview-average">{{fmt(productionTotals.average_output)}}</span></el-form-item>
           </el-form>
@@ -160,6 +160,9 @@
       </fieldset>
       </main>
     </div>
+    <el-dialog v-model="oeeIssuesVisible" title="本月设备综合效率待核对" width="min(680px, calc(100vw - 24px))" :close-on-click-modal="false">
+      <ul class="oee-issue-list" data-testid="oee-issue-list"><li v-for="issue in monthlyOeeIssues" :key="issue.date+'-'+issue.line_id+'-'+issue.field"><button type="button" :class="issue.severity" @click="focusOeeIssue(issue)"><strong>{{issue.date}} · {{issue.name}}</strong><span>{{issue.message}}</span></button></li></ul>
+    </el-dialog>
     <footer class="editor-savebar" data-testid="save-bar">
       <span class="save-status" :class="{dirty:isDirty}" role="status" data-testid="save-status">{{saveStatusLabel}}</span>
       <div class="savebar-actions"><el-button @click="reloadCurrent" :disabled="loading||saving||!isDirty">放弃修改</el-button><el-button type="primary" @click="saveModule" :loading="saving" :disabled="loading||!moduleReady" data-testid="save-button"><svg v-if="!saving" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h13l4 4v14H3V3h1ZM7 3v6h10V3M7 21v-8h10v8"></path></svg><span>{{currentModule.saveLabel}}</span></el-button></div>

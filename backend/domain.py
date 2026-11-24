@@ -96,6 +96,37 @@ def ratio(numerator, denominator):
     return round(numerator / denominator * 100, 2)
 
 
+def production_oee_issues(line, day):
+    """检查日报完整性；line 为含产能的产线日报，day 为日期；返回可定位的字段问题及错误级别。"""
+    actual, planned, abnormal = line.get("actual_qty"), line.get("planned_hours"), line.get("abnormal_hours")
+    if actual is None:
+        return []
+    issues = []
+
+    def add(field, message, severity="warning"):
+        """收集字段问题；field/message/severity 为字段、提示和级别；无返回值。"""
+        issues.append({"date": day, "line_id": line["id"], "name": line["name"],
+                       "field": field, "message": message, "severity": severity})
+
+    if actual > 0 and planned == 0:
+        add("planned_hours", "已有产量，计划生产时长必须大于 0，请核对。", "error")
+    if abnormal is not None and planned is not None and abnormal > planned:
+        add("abnormal_hours", "异常停机工时不能超过计划生产时长，请核对。", "error")
+    elif actual > 0 and abnormal is not None and planned is not None and abnormal >= planned:
+        add("abnormal_hours", f"已有产量 {actual:g}，异常停机工时必须小于计划工时 {planned:g} 小时，请核对。", "error")
+    if line["id"] not in (3, 4):
+        return issues
+    if planned == 0 and actual == 0:
+        add("planned_hours", "计划生产时长为 0，本月设备综合效率暂无法计算；请核对是否无生产计划。")
+    if abnormal is None:
+        add("abnormal_hours", "未填写异常停机工时，本月设备综合效率暂无法计算；确认无异常停机请填 0。")
+    if actual > 0 and line.get("defect_qty") is None:
+        add("defect_qty", "未填写不良数量，本月设备综合效率暂无法计算；确认无不良请填 0。")
+    if not line.get("theoretical_max_per_hour"):
+        add("theoretical_max_per_hour", "未配置设备理论最大产量，请到流程与设置填写。")
+    return issues
+
+
 def line_runtime(now, zone, downtimes, planned_hours=24, day=None):
     """计算状态及运行率；now/zone 为时钟时区，downtimes 为停机，planned_hours 为计划小时，day 可指定日期；返回统计字典。"""
     now = now.astimezone(UTC)

@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from . import audit
 
 from .domain import (STATUS_LABELS, STOP_KINDS, ValidationError, day_bounds, line_runtime,
-                     number, parse_date, parse_datetime, parse_month, ratio, text)
+                     number, parse_date, parse_datetime, parse_month, production_oee_issues, ratio, text)
 
 
 class ConflictError(ValueError):
@@ -139,6 +139,13 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True, productio
         if item["unit"] == "个":
             item["unit"] = "件"
     if include_audit:
+        # 按所选日报月份列出缺项，供编辑端跳转定位；不改变 OEE 计算或补写业务数据。
+        result["oee_issues"] = [issue for line in rows(db,
+            "SELECT l.id,l.name,l.theoretical_max_per_hour,d.work_date,d.actual_qty,d.defect_qty,"
+            "d.planned_hours,d.abnormal_hours FROM production_daily d JOIN production_line l ON l.id=d.line_id "
+            "WHERE d.line_id IN (3,4) AND substr(d.work_date,1,7)=? AND d.work_date<=? "
+            "AND d.actual_qty IS NOT NULL ORDER BY d.work_date,l.id", (day[:7], today))
+            for issue in production_oee_issues(line, line["work_date"])]
         lookup = audit.attribution_lookup(db)
         audit.attach([config], "screen_settings", lookup)
         audit.attach([result["production"]["monthly_plan"]], "production_month_plan", lookup, bool(plan))
@@ -341,6 +348,7 @@ def save_production(db, payload, day, now):
             raise ValidationError("不良数量不能大于实际产量，且必须先填写实际产量")
         abnormal = number(item.get("abnormal_hours", previous[item["id"]]["abnormal_hours"] if item["id"] in previous else None),
                           "异常停机工时", optional=True, maximum=planned_hours)
+        validate_production_timing(item["id"], day, actual, planned_hours, abnormal)
         # 旧版导入节拍只保留原始记录；当前 OEE 从产线理论小时产能计算，不接受日报改写基准。
         cycle = previous[item["id"]]["ideal_cycle_hours"] if item["id"] in previous else None
         db.execute("INSERT INTO production_daily(line_id,work_date,actual_qty,defect_qty,planned_hours,abnormal_hours,ideal_cycle_hours) "
@@ -479,6 +487,15 @@ def save_sales(db, payload, month):
     db.executemany("INSERT INTO shipment_month_item(id,month,part_no,quantity,name,shipment_date,sort_order) VALUES(?,?,?,?,?,?,?)", prepared)
 
 
+def validate_production_timing(identifier, day, actual, planned, abnormal):
+    """拦截产量与工时矛盾；参数为产线、日期、产量及工时；无返回值，矛盾时抛出可定位错误。"""
+    line = {"id": identifier, "name": f"产线 {identifier:02d}", "actual_qty": actual,
+            "planned_hours": planned, "abnormal_hours": abnormal}
+    errors = [issue for issue in production_oee_issues(line, day) if issue["severity"] == "error"]
+    if errors:
+        raise ValidationError(f"{day} {line['name']}：{errors[0]['message']}")
+
+
 def save_production_import(db, payload, month, now):
     """原子导入月日报及标准；payload 为勾选记录与标准、month 为月份、now 为时间；返回写入条数，空字段保留旧值。"""
     parse_month(month)
@@ -509,6 +526,7 @@ def save_production_import(db, payload, month, now):
         hours = number(item.get("planned_hours", previous["planned_hours"] if previous else 24), "计划生产工时", maximum=24)
         abnormal = number(item.get("abnormal_hours", previous["abnormal_hours"] if previous else None),
                           "异常停机工时", optional=True, maximum=hours)
+        validate_production_timing(identifier, day, actual, hours, abnormal)
         # 历史导入节拍仅留档，OEE 统一使用产线配置的理论小时产能，忽略客户端节拍。
         cycle = previous["ideal_cycle_hours"] if previous else None
         # 未填写报废时保留已有值；只有用户勾选覆盖才接受改变已录入数量。

@@ -38,6 +38,26 @@ const BoardModel = (() => {
     return Math.max(1, range.max);
   }
 
+  /** 检查填写中的日报；line 为产线草稿、day 为日期；返回可定位的问题，缺项不自动补零。 */
+  function productionIssues(line, day) {
+    if (line.actual_qty == null || line.actual_qty === "") return [];
+    const actual = Number(line.actual_qty), planned = line.planned_hours, abnormal = line.abnormal_hours;
+    const issues = [];
+    const add = (field, message, severity = "warning") => issues.push({ date: day, line_id: line.id, name: line.name, field, message, severity });
+    if (planned == null || planned === "") add("planned_hours", "请填写计划生产时长。", "error");
+    else if (actual > 0 && planned === 0) add("planned_hours", "已有产量，计划生产时长必须大于 0，请核对。", "error");
+    if (abnormal != null && abnormal !== "" && planned != null) {
+      if (abnormal > planned) add("abnormal_hours", "异常停机工时不能超过计划生产时长，请核对。", "error");
+      else if (actual > 0 && abnormal >= planned) add("abnormal_hours", `已有产量 ${formatNumber(actual)}，异常停机工时必须小于计划工时 ${formatNumber(planned)} 小时，请核对。`, "error");
+    }
+    if (![3, 4].includes(line.id)) return issues;
+    if (planned === 0 && actual === 0) add("planned_hours", "计划生产时长为 0，本月设备综合效率暂无法计算；请核对是否无生产计划。");
+    if (abnormal == null || abnormal === "") add("abnormal_hours", "未填写异常停机工时，本月设备综合效率暂无法计算；确认无异常停机请填 0。");
+    if (actual > 0 && (line.defect_qty == null || line.defect_qty === "")) add("defect_qty", "未填写不良数量，本月设备综合效率暂无法计算；确认无不良请填 0。");
+    if (!(line.theoretical_max_per_hour > 0)) add("theoretical_max_per_hour", "未配置设备理论最大产量，请到流程与设置填写。");
+    return issues;
+  }
+
   /** 读取趋势单位分组；trend 为接口数据；返回各单位独立合计，旧配置输入默认按件处理。 */
   function trendGroups(trend) {
     return trend.groups || [{ unit: trend.series[0]?.unit || "件", totals: trend.totals, period_total: trend.period_total }];
@@ -188,7 +208,7 @@ const BoardModel = (() => {
     };
   }
 
-  return Object.freeze({ formatNumber, unitLabel, weightTonnes, weightKilograms, formatPercent, inventorySummary, trendColor, trendGroups, buildTrendOption, buildShipmentOption });
+  return Object.freeze({ formatNumber, unitLabel, weightTonnes, weightKilograms, formatPercent, inventorySummary, productionIssues, trendColor, trendGroups, buildTrendOption, buildShipmentOption });
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = BoardModel;
