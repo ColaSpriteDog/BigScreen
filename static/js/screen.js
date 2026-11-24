@@ -364,7 +364,10 @@
   function resizeCharts() {
     trendChart?.resize();
     shipmentChart?.resize();
-    shipmentChart?.setOption({ series: [{ barWidth: Math.max(6, Math.min(14, (document.getElementById("shipmentChart").clientHeight - 18) / 16)) }] });
+    // 缩放后按最新记录数重算绘图区，保持少量数据紧凑、满榜文字不重叠。
+    if (shipmentChart && lastData) {
+      shipmentChart.setOption(model.buildShipmentOption(lastData.sales.ranking, document.getElementById("shipmentChart").clientHeight), { notMerge: true });
+    }
   }
 
   const observer = new ResizeObserver(resizeCharts);

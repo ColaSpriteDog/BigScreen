@@ -117,15 +117,17 @@ const BoardModel = (() => {
 
   /** 创建出货排名横柱图；ranking 为已汇总排序的前八个件号、height 为容器高度；返回图表配置。 */
   function buildShipmentOption(ranking, height = 300) {
+    // 每条记录最多占 52 像素，少量数据靠上紧凑排列，满榜时按容器高度收缩。
+    const plotHeight = Math.min(Math.max(0, height - 18), Math.max(1, ranking.length) * 52);
     // 根据每项可用高度调整双行标签，避免小屏显示满八项时相互遮挡。
-    const labelLineHeight = Math.max(10, Math.min(16, Math.floor((height - 18) / Math.max(1, ranking.length) / 2) - 1));
+    const labelLineHeight = Math.max(10, Math.min(16, Math.floor(plotHeight / Math.max(1, ranking.length) / 2) - 1));
     const categories = ranking.map(item => item.part_no);
     // 数量列按实际最长文本预留宽度，与柱长解耦，零数量也能完整显示。
     const quantityWidth = Math.max(52, ...ranking.map(item => formatNumber(item.quantity).length * 7 + 20));
     return {
       animation: false,
       textStyle: { fontFamily: "Bahnschrift, Microsoft YaHei, sans-serif" },
-      grid: { top: 10, right: quantityWidth, bottom: 8, left: 120 },
+      grid: { top: 10, right: quantityWidth, height: plotHeight, left: 120 },
       tooltip: { trigger: "axis", confine: true, renderMode: "richText",
         axisPointer: { type: "shadow", shadowStyle: { color: "rgba(169, 192, 209, .045)" } },
         backgroundColor: "#122936", borderColor: "#294859", borderWidth: 1, padding: [10, 12],
