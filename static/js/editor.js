@@ -379,6 +379,8 @@
           if (candidates.length > 1) throw new Error(`第 ${item.source_row} 行物料对应多个仓库或重复草稿，请先明确仓库后再导入`);
           const { source_row, ...values } = item;
           const previous = candidates[0];
+          // 导入沿用已有显示配置，新物料默认显示在大屏。
+          values.show_on_screen = previous?.show_on_screen ?? true;
           // 同一物料继续使用原 ID，保存时才能保留首次录入人和未变化行的修改记录。
           return previous ? { ...previous, ...values, specification: previous.specification, warehouse: previous.warehouse } : { ...values, _key: this.newKey() };
         });
@@ -512,7 +514,8 @@
       clearWarehouseImport() { this.warehouseImport = null; },
       /** 新增原材料草稿；无参数；无返回值，数量保持未填写。 */
       addRaw() {
-        this.inventory.raw.push({ _key: this.newKey(), material: "", warehouse: this.rawWarehouses[0], specification: "", position: "", quantity: null, unit: "卷", weight_kg: null, cuttable_qty: null });
+        // 手工新增原材料默认显示，开关随库存草稿一起保存。
+        this.inventory.raw.push({ _key: this.newKey(), material: "", warehouse: this.rawWarehouses[0], specification: "", position: "", quantity: null, unit: "卷", weight_kg: null, cuttable_qty: null, show_on_screen: true });
         this.markDirty("inventory");
       },
       /** 新增员工草稿；无参数；无返回值，新员工默认启用并需填写账号、姓名和密码。 */
@@ -550,7 +553,8 @@
       },
       /** 新增半成品草稿；无参数；无返回值。 */
       addSemi() {
-        this.inventory.semi.push({ _key: this.newKey(), category: "左件", material: "", warehouse: this.semiWarehouses[0], specification: "", quantity: null, unit: "件" });
+        // 手工新增半成品默认显示，复制行则沿用被复制行的开关。
+        this.inventory.semi.push({ _key: this.newKey(), category: "左件", material: "", warehouse: this.semiWarehouses[0], specification: "", quantity: null, unit: "件", show_on_screen: true });
         this.markDirty("inventory");
       },
       /** 复制库存行；kind 为 raw/semi，index 为行号；无返回值，新行获得独立标识。 */

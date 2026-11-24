@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS raw_material_stock (
     unit TEXT NOT NULL,
     weight_kg REAL CHECK (weight_kg IS NULL OR weight_kg >= 0),
     cuttable_qty INTEGER CHECK (cuttable_qty IS NULL OR cuttable_qty >= 0),
+    show_on_screen INTEGER NOT NULL DEFAULT 1 CHECK (show_on_screen IN (0, 1)),
     sort_order INTEGER NOT NULL,
     UNIQUE(material, warehouse, specification, position, unit)
 );
@@ -75,6 +76,7 @@ CREATE TABLE IF NOT EXISTS semi_finished_stock (
     specification TEXT NOT NULL,
     quantity INTEGER NOT NULL CHECK (quantity >= 0),
     unit TEXT NOT NULL,
+    show_on_screen INTEGER NOT NULL DEFAULT 1 CHECK (show_on_screen IN (0, 1)),
     sort_order INTEGER NOT NULL,
     UNIQUE(category, material, warehouse, specification, unit)
 );
@@ -135,4 +137,4 @@ CREATE TABLE IF NOT EXISTS record_attribution (
     PRIMARY KEY (record_type, record_key)
 );
 
-PRAGMA user_version = 6;
+PRAGMA user_version = 7;

@@ -11,7 +11,7 @@
   <script defer src="/static/vendor/element-plus-zh-cn.js"></script>
   <script defer src="/static/js/model.js?v=20261123-production-import"></script>
   <script defer src="/static/js/api.js?v=20261123-import"></script>
-  <script defer src="/static/js/editor.js?v=20261124-production-plan"></script>
+  <script defer src="/static/js/editor.js?v=20261124-semi-visibility"></script>
 </head>
 <body>
   <div id="bootStatus" role="status">正在加载编辑页面…</div>
@@ -103,6 +103,7 @@
             <el-table-column prop="weight_kg" label="重量（吨）" min-width="115"><template #default="scope"><el-input-number :model-value="weightTonnes(scope.row.weight_kg)" :min="0" :precision="5" :controls="false" @update:model-value="value=>updateWeight(scope.row,value)" aria-label="原材料重量"></el-input-number></template></el-table-column>
             <el-table-column label="状态" width="100"><template #default="scope"><el-tag v-if="scope.row.quantity!==null&&scope.row.quantity!==undefined" class="status-pill" :type="scope.row.quantity===0?'danger':'success'">{{scope.row.quantity===0?'零库存':'有库存'}}</el-tag><span v-else>—</span></template></el-table-column>
             <el-table-column prop="cuttable_qty" label="可切（件）" min-width="105"><template #default="scope"><el-input-number v-model="scope.row.cuttable_qty" :min="0" :precision="0" :controls="false" @change="markDirty('inventory')" aria-label="可切件数" :data-testid="'raw-cuttable-'+scope.$index"></el-input-number></template></el-table-column>
+            <el-table-column prop="show_on_screen" label="大屏显示" width="100" align="center"><template #default="scope"><el-switch v-model="scope.row.show_on_screen" @change="markDirty('inventory')" aria-label="原材料大屏显示" :data-testid="'raw-visible-'+scope.$index"></el-switch></template></el-table-column>
             <el-table-column label="操作" width="105"><template #default="scope"><el-button link @click="copyRow('raw',scope.$index)">复制</el-button><el-button link type="danger" @click="removeRow('raw',scope.$index)">删除</el-button></template></el-table-column>
                       <el-table-column label="最后修改" width="195"><template #default="scope"><record-audit :meta="scope.row._audit" :timezone="timezone"></record-audit></template></el-table-column>
 </el-table></div>
@@ -114,6 +115,8 @@
             <el-table-column prop="specification" label="规格" min-width="140"><template #default="scope"><el-input v-model="scope.row.specification" maxlength="30" @input="markDirty('inventory')" aria-label="半成品规格"></el-input></template></el-table-column>
             <el-table-column prop="quantity" label="库存" min-width="140"><template #default="scope"><el-input-number v-model="scope.row.quantity" :min="0" :precision="0" :controls="false" @change="markDirty('inventory')" aria-label="半成品库存"></el-input-number></template></el-table-column>
             <el-table-column prop="unit" label="单位" width="100"><template #default="scope"><el-select v-model="scope.row.unit" filterable allow-create @change="markDirty('inventory')" aria-label="半成品单位"><el-option label="件" value="件"></el-option></el-select></template></el-table-column>
+            <!-- 半成品沿用原材料的逐行开关，随库存统一保存。 -->
+            <el-table-column prop="show_on_screen" label="大屏显示" width="100" align="center"><template #default="scope"><el-switch v-model="scope.row.show_on_screen" @change="markDirty('inventory')" aria-label="半成品大屏显示" :data-testid="'semi-visible-'+scope.$index"></el-switch></template></el-table-column>
             <el-table-column label="操作" width="110"><template #default="scope"><el-button link @click="copyRow('semi',scope.$index)">复制</el-button><el-button link type="danger" @click="removeRow('semi',scope.$index)">删除</el-button></template></el-table-column>
                       <el-table-column label="最后修改" width="195"><template #default="scope"><record-audit :meta="scope.row._audit" :timezone="timezone"></record-audit></template></el-table-column>
 </el-table></div>

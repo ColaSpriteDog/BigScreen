@@ -80,6 +80,16 @@ def initialize_database(path, zone, timestamp):
             if column not in daily_columns:
                 connection.execute(f"ALTER TABLE production_daily ADD COLUMN {column} REAL")
         migrate_shipment_details(connection)
+        # 旧库原材料默认全部显示；升级仅补充配置列，保留库存及人员记录。
+        raw_columns = {row["name"] for row in connection.execute("PRAGMA table_info(raw_material_stock)")}
+        if "show_on_screen" not in raw_columns:
+            connection.execute("ALTER TABLE raw_material_stock ADD COLUMN show_on_screen INTEGER NOT NULL DEFAULT 1 "
+                               "CHECK (show_on_screen IN (0, 1))")
+        # 旧库半成品默认全部显示，重复启动时保留已保存的隐藏配置。
+        semi_columns = {row["name"] for row in connection.execute("PRAGMA table_info(semi_finished_stock)")}
+        if "show_on_screen" not in semi_columns:
+            connection.execute("ALTER TABLE semi_finished_stock ADD COLUMN show_on_screen INTEGER NOT NULL DEFAULT 1 "
+                               "CHECK (show_on_screen IN (0, 1))")
         connection.execute(
             "INSERT OR IGNORE INTO screen_settings(id,timezone,updated_at) VALUES(1,?,?)",
             (zone, timestamp),

@@ -130,8 +130,12 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True, productio
                   "items": rows(db, "SELECT * FROM shipment_month_item WHERE month=? AND (shipment_date IS NULL OR substr(shipment_date,1,7)=?) ORDER BY sort_order,id", (month, month))},
         "processes": rows(db, "SELECT * FROM process_node ORDER BY sort_order"),
     }
+    # 对外统一返回布尔值，后台保留隐藏记录以便随时恢复显示。
+    for item in result["inventory"]["raw"]:
+        item["show_on_screen"] = bool(item["show_on_screen"])
     # 历史“个”与现在的“件”为同一计数口径，读取时统一单位，不在读取请求中修改数据库。
     for item in result["inventory"]["semi"]:
+        item["show_on_screen"] = bool(item["show_on_screen"])
         if item["unit"] == "个":
             item["unit"] = "件"
     if include_audit:
@@ -251,6 +255,10 @@ def dashboard_snapshot(db, now):
     totals = groups[0]["totals"] if len(groups) == 1 else None
     reported_days = sum(any(outputs.get((date, item["line_id"])) is not None for item in series) for date in dates)
     inventory = snapshot["inventory"]
+    # 明细、数量汇总、重量及零库存提示统一使用大屏可见记录。
+    inventory["raw"] = [item for item in inventory["raw"] if item["show_on_screen"]]
+    # 半成品明细与合计使用相同的可见记录，编辑端仍保留全部库存。
+    inventory["semi"] = [item for item in inventory["semi"] if item["show_on_screen"]]
     for item in inventory["raw"]:
         item["status"] = "zero" if item["quantity"] == 0 else "available"
     inventory.update(raw_totals=unit_totals(inventory["raw"]), semi_totals=unit_totals(inventory["semi"]),
@@ -389,6 +397,8 @@ def replace_stock(db, table, fields, items):
 def save_inventory(db, payload):
     """原子保存两类库存；payload 为原材料与半成品列表；无返回值，状态和汇总由读取时计算。"""
     raw = []
+    existing_visibility = {row["id"]: bool(row["show_on_screen"])
+                           for row in db.execute("SELECT id,show_on_screen FROM raw_material_stock")}
     for item in array_value(payload.get("raw"), "原材料"):
         cleaned = {"id": number(item.get("id"), "库存ID", integer=True, optional=True)}
         for field, label in [("material", "物料"), ("warehouse", "仓库"), ("specification", "规格"),
@@ -397,8 +407,15 @@ def save_inventory(db, payload):
         cleaned["quantity"] = number(item.get("quantity"), "原材料库存")
         cleaned["weight_kg"] = number(item.get("weight_kg"), "重量", optional=True)
         cleaned["cuttable_qty"] = number(item.get("cuttable_qty"), "可切件数", integer=True, optional=True)
+        # 新记录默认显示，旧客户端未传开关时保留原配置，避免导入或保存意外恢复隐藏项。
+        visible = item.get("show_on_screen", existing_visibility.get(cleaned["id"], True))
+        if not isinstance(visible, bool):
+            raise ValidationError("大屏显示必须为布尔值")
+        cleaned["show_on_screen"] = int(visible)
         raw.append(cleaned)
     semi = []
+    semi_visibility = {row["id"]: bool(row["show_on_screen"])
+                       for row in db.execute("SELECT id,show_on_screen FROM semi_finished_stock")}
     for item in array_value(payload.get("semi"), "半成品"):
         cleaned = {"id": number(item.get("id"), "库存ID", integer=True, optional=True)}
         for field, label in [("category", "类别"), ("material", "物料"), ("warehouse", "仓库"),
@@ -407,9 +424,14 @@ def save_inventory(db, payload):
         cleaned["quantity"] = number(item.get("quantity"), "半成品库存", integer=True)
         if cleaned["unit"] == "个":
             cleaned["unit"] = "件"
+        # 兼容未传开关的旧请求，重新保存时保留已有半成品的显示配置。
+        visible = item.get("show_on_screen", semi_visibility.get(cleaned["id"], True))
+        if not isinstance(visible, bool):
+            raise ValidationError("大屏显示必须为布尔值")
+        cleaned["show_on_screen"] = int(visible)
         semi.append(cleaned)
-    replace_stock(db, "raw_material_stock", ["material", "warehouse", "specification", "position", "quantity", "unit", "weight_kg", "cuttable_qty"], raw)
-    replace_stock(db, "semi_finished_stock", ["category", "material", "warehouse", "specification", "quantity", "unit"], semi)
+    replace_stock(db, "raw_material_stock", ["material", "warehouse", "specification", "position", "quantity", "unit", "weight_kg", "cuttable_qty", "show_on_screen"], raw)
+    replace_stock(db, "semi_finished_stock", ["category", "material", "warehouse", "specification", "quantity", "unit", "show_on_screen"], semi)
 
 
 def save_warehouse_import(db, payload, month):
