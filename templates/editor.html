@@ -52,7 +52,7 @@
           <!-- 月计划与导入共用生产月份，独立于下方所选日期的日报指标。 -->
           <div class="inventory-import-toolbar production-import-toolbar">
             <el-date-picker v-model="productionImportMonth" type="month" value-format="YYYY-MM" format="YYYY-MM" :clearable="false" aria-label="生产月份" @change="changeProductionMonth"></el-date-picker>
-            <label class="monthly-plan-label" for="monthly-plan-input">计划产量（件）</label>
+            <label class="monthly-plan-label" for="monthly-plan-input">A/B 拼焊月计划产量（件）</label>
             <el-input-number v-model="production.monthly_plan.planned_qty" id="monthly-plan-input" :min="0" :max="1000000000000" :precision="0" :controls="false" placeholder="留空自动计算" aria-label="月计划产量" data-testid="monthly-plan" @change="markDirty('production')"></el-input-number>
             <record-audit :meta="production.monthly_plan._audit" :timezone="timezone"></record-audit>
             <el-button class="production-import-button" type="primary" @click="$refs.productionFile.click()" :disabled="loading||saving||!moduleReady" data-testid="import-production">导入生产日报推移图</el-button><input ref="productionFile" type="file" accept=".xls,.xlsx" hidden aria-label="生产日报 Excel 文件" @change="previewProductionFile">
