@@ -35,7 +35,8 @@
         .line-index { color: var(--text-sub); font: 700 13px var(--font-number); }
         .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: status-breathe 3s ease-in-out infinite; }
         .symbol-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
-        .data-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 12px; color: var(--text-sub); font-size: 12px; }
+        /* 同一行的左右字段共享文字基线，避免昨日产量的大字号数值撑偏标题。 */
+        .data-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: baseline; gap: 5px 12px; color: var(--text-sub); font-size: 12px; }
         .data-list > div { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; white-space: nowrap; }
         .data-list > div:last-child { grid-column: 1 / -1; margin-top: 3px; }
         .data-list .val { color: var(--text-strong); font-weight: 700; font-family: var(--font-number); font-variant-numeric: tabular-nums; }
