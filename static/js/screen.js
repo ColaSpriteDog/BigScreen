@@ -61,7 +61,7 @@
         metric("本月产量" + unit, model.formatNumber(line.monthly_qty)), metric(line.unit === "米" ? "昨日报废" : "昨日不良", defectText, line.yesterday_defect_qty > 0));
       const status = metric("运行状态", `${line.status_label} ${model.formatPercent(line.runtime_rate)}`);
       status.lastElementChild.style.color = line.status === "running" ? "var(--green)" : "var(--orange)";
-      status.title = `计划生产 ${model.formatNumber(line.planned_hours)}（小时）；当天累计停机 ${model.formatNumber(line.downtime_minutes)}（分钟）；运行率按计划生产时长扣除当天已发生停机计算`;
+      status.title = `计划生产 ${model.formatNumber(line.planned_hours)}（小时）；当天停机 ${model.formatNumber(line.downtime_minutes)}（分钟）；运行率按计划生产时长扣除配置停机时段与当天重叠的时长计算，未填写结束时间的停机累计至当前`;
       list.append(status);
       const progress = node("div", "progress-bar");
       const fill = node("div", "progress-inner" + (line.status === "running" ? "" : " warn"));

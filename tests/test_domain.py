@@ -5,8 +5,8 @@ import pytest
 from backend.domain import line_runtime
 
 
-def test_runtime_counts_only_elapsed_downtime():
-    """验证运行率边界；无参数；断言未来停机不扣除、当前停机正确显示。"""
+def test_runtime_counts_complete_configured_downtime():
+    """验证配置停机口径；无参数；断言当天完整时段参与计算，当前状态仍按实时时刻判断。"""
     now = datetime(2026, 11, 21, 12, tzinfo=timezone.utc)
     stops = [
         {"start_at": "2026-11-21T09:00:00+00:00", "end_at": "2026-11-21T10:00:00+00:00", "kind": "maintenance"},
@@ -14,14 +14,14 @@ def test_runtime_counts_only_elapsed_downtime():
         {"start_at": "2026-11-21T18:00:00+00:00", "end_at": "2026-11-21T19:00:00+00:00", "kind": "fault"},
     ]
     result = line_runtime(now, "UTC", stops)
-    assert result["runtime_rate"] == 91.67
-    assert result["downtime_minutes"] == 120
+    assert result["runtime_rate"] == 83.33
+    assert result["downtime_minutes"] == 240
     assert result["status"] == "stopped"
 
 
 @pytest.mark.parametrize('stops,expected_rate,expected_state', [
     ([], 100, 'running'),
-    ([{'start_at': '2026-11-21T18:00:00+00:00', 'end_at': '2026-11-21T19:00:00+00:00', 'kind': 'maintenance'}], 100, 'running'),
+    ([{'start_at': '2026-11-21T18:00:00+00:00', 'end_at': '2026-11-21T19:00:00+00:00', 'kind': 'maintenance'}], 95.83, 'running'),
     ([{'start_at': '2026-11-20T23:00:00+00:00', 'end_at': '2026-11-21T01:00:00+00:00', 'kind': 'stopped'}], 95.83, 'running'),
     ([{'start_at': '2026-11-21T11:00:00+00:00', 'end_at': None, 'kind': 'maintenance'}], 95.83, 'maintenance'),
     ([{'start_at': '2026-11-21T11:00:00+00:00', 'end_at': '2026-11-21T12:00:00+00:00', 'kind': 'fault'}], 95.83, 'running'),
@@ -40,6 +40,27 @@ def test_overlapping_stops_count_union_once():
     result = line_runtime(datetime(2026, 11, 21, 12, tzinfo=timezone.utc), 'UTC', stops)
     assert result['downtime_minutes'] == 180
     assert result['runtime_rate'] == 87.5
+
+
+@pytest.mark.parametrize('hour', [0, 12, 23])
+def test_month_long_stop_covers_whole_business_day(hour):
+    """验证整月停机；hour 为当前小时；返回前断言计划二十点四小时的全天停机始终为零运行率。"""
+    stops = [{'start_at': '2026-11-01T00:00:00+08:00', 'end_at': '2026-11-30T23:59:00+08:00', 'kind': 'stopped'}]
+    now = datetime.fromisoformat(f'2026-11-24T{hour:02d}:00:00+08:00')
+    result = line_runtime(now, 'Asia/Shanghai', stops, 20.4)
+    assert result['runtime_rate'] == 0
+    assert result['downtime_minutes'] == 1440
+    assert result['status'] == 'stopped'
+
+
+def test_configured_future_overlaps_merge_and_clip_at_day_end():
+    """验证未来及跨天停机；无参数；断言当天重叠时段合并且不扣除次日部分，当前不提前停机。"""
+    stops = [{'start_at': '2026-11-21T18:00:00+00:00', 'end_at': '2026-11-22T04:00:00+00:00', 'kind': 'stopped'},
+             {'start_at': '2026-11-21T20:00:00+00:00', 'end_at': '2026-11-21T23:00:00+00:00', 'kind': 'fault'}]
+    result = line_runtime(datetime(2026, 11, 21, 12, tzinfo=timezone.utc), 'UTC', stops, 12)
+    assert result['runtime_rate'] == 50
+    assert result['downtime_minutes'] == 360
+    assert result['status'] == 'running'
 
 
 def test_midnight_has_no_invalid_division():

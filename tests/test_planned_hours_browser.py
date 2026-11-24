@@ -10,6 +10,31 @@ from tests.test_browser import fill_control
 
 
 @pytest.mark.parametrize('width,height', [(1440, 900), (375, 812)])
+def test_month_long_stop_shows_zero_in_editor_and_screen(ui_context, live_server, client, width, height):
+    """验证整月停机显示；上下文、服务、客户端和尺寸为参数；断言后台与大屏按完整配置显示零运行率。"""
+    draft = production_payload(client)
+    draft['lines'][3]['planned_hours'] = 20.4
+    # 留空异常停机工时，确保运行率仅使用配置的起止时段。
+    draft['downtimes'] = [{'line_id': 4, 'start_at': '2026-11-01T00:00:00',
+                           'end_at': '2026-11-30T23:59:00', 'kind': 'stopped', 'note': '设备未入场'}]
+    assert client.put('/api/production/2026-11-21', json=draft).status_code == 200
+    line = client.get('/api/dashboard').get_json()['lines'][3]
+    assert line['runtime_rate'] == 0 and line['downtime_minutes'] == 1440
+    assert line['abnormal_hours'] is None
+    page = ui_context.new_page()
+    page.set_viewport_size({'width': width, 'height': height})
+    page.goto(live_server + '/edit')
+    expect(page.get_by_test_id('save-button')).to_be_enabled()
+    row = page.get_by_test_id('production-table').locator('.el-table__body-wrapper tbody tr').nth(3)
+    expect(row.locator('.status-pill')).to_have_text('停机')
+    expect(row.locator('td').nth(10)).to_have_text('0%')
+    page.goto(live_server + '/screen')
+    card = page.locator('.line-card[data-line-id="4"]')
+    expect(card.locator('.data-list > div').last).to_have_text('运行状态停机 0%')
+    expect(card.locator('.progress-inner')).to_have_css('width', '0px')
+
+
+@pytest.mark.parametrize('width,height', [(1440, 900), (375, 812)])
 def test_planned_hours_edit_save_and_screen_rate(ui_context, live_server, client, width, height):
     """验证计划时长交互；上下文、服务、客户端及视口尺寸为参数；断言十二小时扣一小时、零小数及刷新持久化。"""
     draft = production_payload(client)

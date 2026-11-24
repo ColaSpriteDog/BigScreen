@@ -101,7 +101,6 @@ def line_runtime(now, zone, downtimes, planned_hours=24, day=None):
     now = now.astimezone(UTC)
     local_day = day or now.astimezone(ZoneInfo(zone)).date().isoformat()
     beginning, ending = day_bounds(local_day, zone)
-    cutoff = min(now, ending)
     planned_seconds = number(planned_hours, "计划生产时长", maximum=24) * 3600
     spans = []
     active = []
@@ -110,7 +109,8 @@ def line_runtime(now, zone, downtimes, planned_hours=24, day=None):
         finish = parse_datetime(item["end_at"]) if item.get("end_at") else now
         if start <= now and (not item.get("end_at") or now < finish):
             active.append(item)
-        left, right = max(start, beginning), min(finish, cutoff)
+        # 已配置结束时间的停机按完整区间截取业务日；未结束的即时停机仍累计至当前。
+        left, right = max(start, beginning), min(finish, ending)
         if right > left:
             spans.append((left, right))
     spans.sort()

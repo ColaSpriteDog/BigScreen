@@ -165,7 +165,7 @@ def test_downtime_automatically_updates_line_and_process(client, clock):
     assert client.put('/api/production/2026-11-21', json=draft).status_code == 200
     data = client.get('/api/dashboard').get_json()
     assert data['lines'][3]['status'] == 'maintenance'
-    assert data['lines'][3]['runtime_rate'] == 95.83
+    assert data['lines'][3]['runtime_rate'] == 91.67
     assert data['processes'][3]['status_label'] == 'B线维护'
     clock['now'] = datetime(2026, 11, 21, 13, tzinfo=timezone.utc)
     fresh = client.get('/api/dashboard').get_json()

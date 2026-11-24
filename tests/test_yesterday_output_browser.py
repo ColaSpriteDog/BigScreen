@@ -31,7 +31,7 @@ def test_cards_show_yesterday_output_and_defects_with_live_status(ui_context, li
     expect(metrics.nth(1)).to_have_text('昨日产量（米）123.45')
     expect(metrics.nth(3)).to_have_text('昨日报废1.25 米（1%）')
     expect(first).to_have_attribute('data-state', 'maintenance')
-    expect(metrics.last).to_contain_text('91.7%')
+    expect(metrics.last).to_contain_text('83.3%')
     second = page.locator('.line-card[data-line-id="2"] .data-list > div')
     expect(second.nth(1)).to_have_text('昨日产量（件）0')
     expect(second.nth(3)).to_have_text('昨日不良0 件')
