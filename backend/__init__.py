@@ -7,7 +7,7 @@ import os
 import sqlite3
 from zoneinfo import ZoneInfo
 
-from flask import Flask, Request, g, jsonify, redirect, request, send_from_directory, session
+from flask import Flask, Request, g, jsonify, redirect, render_template, request, send_from_directory, session
 from werkzeug.exceptions import HTTPException
 
 from .db import close_db, get_db, initialize_database
@@ -37,7 +37,8 @@ def utc_now():
 def create_app(configuration=None):
     """创建应用；configuration 可覆盖数据库、时区和测试时钟；返回已初始化的 Flask 实例。"""
     root = Path(__file__).resolve().parents[1]
-    app = Flask(__name__, static_folder=str(root / "static"), static_url_path="/static")
+    app = Flask(__name__, static_folder=str(root / "static"), static_url_path="/static",
+                template_folder=str(root / "templates"))
     app.request_class = InventoryRequest
     app.config.update(DATABASE=os.environ.get("BIGSCREEN_DATABASE", str(root / "data" / "dashboard.sqlite3")),
                       BUSINESS_TIMEZONE=os.environ.get("BIGSCREEN_TIMEZONE", "Asia/Shanghai"),
@@ -132,7 +133,8 @@ def create_app(configuration=None):
         """提供登录页；无参数；已登录跳转编辑页，否则返回登录表单。"""
         if auth.current_employee(get_db()):
             return redirect("/edit")
-        return send_from_directory(root / "templates", "login.html")
+        # 登录前由服务端应用公开展示开关，避免 Logo 闪现及额外开放业务配置接口。
+        return render_template("login.html", show_login_logo=service.settings(get_db())["show_login_logo"])
 
     @app.post("/api/auth/login")
     def login():

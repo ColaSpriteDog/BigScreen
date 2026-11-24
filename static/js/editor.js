@@ -44,7 +44,7 @@
           { id: "employees", label: "员工管理", saveLabel: "保存员工", icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0" },
         ],
         selectedDate: "", loadedDate: "", selectedMonth: "", loadedMonth: "", businessDate: "", timezone: "UTC",
-        serverTime: "", errorMessage: "", savedAt: "", version: 0,
+        serverTime: "", errorMessage: "", savedAt: "", version: 0, showSidebarLogo: false,
         savedOeeIssues: [], oeeIssuesVisible: false,
         versions: { production: 0, inventory: 0, sales: 0, settings: 0 },
         dirty: { production: false, inventory: false, sales: false, settings: false }, keyCounter: 0, partSearch: "",
@@ -53,7 +53,8 @@
         warehouseImport: null, warehouseDialogVisible: false, warehouseMonth: "",
         productionImport: null, productionDialogVisible: false, productionImportMonth: "", loadedProductionMonth: "",
         productionImportSelection: [], productionOverwrite: false,
-        sales: { order_qty: null, items: [] }, settingsForm: { timezone: "UTC", safety_start_date: null, lines: [], processes: [] } };
+        sales: { order_qty: null, items: [] }, settingsForm: { timezone: "UTC", safety_start_date: null,
+          show_logo: false, show_login_logo: true, show_sidebar_logo: true, lines: [], processes: [] } };
     },
     computed: {
       /** 检查当前日报草稿；无参数；返回即时更新的错误和 OEE 缺项。 */
@@ -217,6 +218,8 @@
         this.businessDate = snapshot.business_date;
         if (!this.warehouseMonth) this.warehouseMonth = snapshot.business_date.slice(0, 7);
         this.timezone = snapshot.settings.timezone;
+        // 侧栏使用已保存快照，设置草稿只有保存成功后才影响实际 Logo。
+        this.showSidebarLogo = snapshot.settings.show_sidebar_logo === true;
         this.serverTime = snapshot.server_time;
         this.savedAt = snapshot.version ? snapshot.updated_at : "";
         if (initial || module === "production") {
@@ -234,6 +237,10 @@
         }
         if (initial || module === "settings") this.settingsForm = { timezone: snapshot.settings.timezone,
           safety_start_date: snapshot.settings.safety_start_date,
+          // 大屏显示开关随设置草稿保存，未保存的选择不会影响大屏。
+          show_logo: snapshot.settings.show_logo === true,
+          show_login_logo: snapshot.settings.show_login_logo === true,
+          show_sidebar_logo: snapshot.settings.show_sidebar_logo === true,
           _audit: clone(snapshot.settings._audit),
           lines: clone(snapshot.production.lines).map(line => ({ ...line, _audit: line._configuration_audit, show_in_trend: Boolean(line.show_in_trend) })),
           processes: clone(snapshot.processes.filter(item => item.id === 1 || item.id === 5)) };

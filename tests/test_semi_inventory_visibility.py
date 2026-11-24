@@ -99,7 +99,7 @@ def test_semi_legacy_database_defaults_visible_and_keeps_hidden_on_restart(tmp_p
     row = migrated.get('/api/dashboard').get_json()['inventory']['semi'][0]
     assert (row['id'], row['quantity'], row['show_on_screen']) == (7, 2977, True)
     with connect_database(path) as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0] == 7
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 9
         db.execute('UPDATE semi_finished_stock SET show_on_screen=0 WHERE id=7')
     restarted = create_app(config).test_client()
     assert restarted.get('/api/dashboard').get_json()['inventory']['semi'] == []

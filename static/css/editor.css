@@ -186,11 +186,16 @@ h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spac
 .share-fill { display: block; height: 100%; border-radius: inherit; background: var(--editor-primary); }
 .shipment-share .number-text { min-width: 45px; color: var(--editor-muted); text-align: right; font-size: 12px; }
 .trend-selection-count { color: var(--editor-primary); font-size: 13px; }
-.settings-form { display: grid; grid-template-columns: 1fr 1fr; gap: 42px; padding: 17px 19px 25px; }
+.settings-form { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 42px; padding: 17px 19px 20px; }
 .settings-form .el-form-item { min-width: 0; margin: 0; }
 .settings-form .el-form-item__label { color: var(--editor-muted); font-size: 12px; }
 .settings-form .el-select, .settings-form .el-date-editor { width: 100%; }
 .settings-form .el-input__wrapper, .settings-form .el-select__wrapper { min-height: 40px; }
+/* Logo 开关集中成一组，文字与控件同行，避免占用普通输入框的整列空间。 */
+.logo-visibility-settings { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px 32px; padding-top: 16px; border-top: 1px solid var(--editor-border); }
+.settings-form .logo-visibility-item.el-form-item { display: flex; flex-direction: row; align-items: center; gap: 16px; }
+.settings-form .logo-visibility-item .el-form-item__label { margin: 0; padding: 0; color: var(--editor-ink); font-size: 13px; line-height: 32px; white-space: nowrap; }
+.settings-form .logo-visibility-item .el-form-item__content { flex: 0 0 auto; min-height: 32px; line-height: 32px; }
 [data-testid='line-settings-table'] .el-table__body .el-table__cell { padding: 12px 0; }
 /* 产量列为单位预留空间，并统一输入框高度，避免单位换行和同行控件错位。 */
 /* 日目标与理论小时产能均将单位放在输入框旁，保持配置表行高一致。 */
@@ -262,6 +267,9 @@ h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spac
   .sales-summary { --sales-summary-font-size: 27px; gap: 12px; }
   .sales-summary > .editor-card { padding: 14px 12px; }
   .settings-form, .process-settings { grid-template-columns: 1fr; gap: 20px; }
+  /* 窄屏逐行排列开关，并让控件沿右侧对齐，保留舒适的触控间距。 */
+  .logo-visibility-settings { flex-direction: column; gap: 8px; }
+  .settings-form .logo-visibility-item.el-form-item { justify-content: space-between; }
   .process-setting img { flex-basis: 80px; width: 80px; height: 70px; }
   .process-setting .el-select { max-width: 180px; }
   .editor-savebar { left: 0; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); }

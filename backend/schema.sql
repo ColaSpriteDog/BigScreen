@@ -4,6 +4,9 @@ CREATE TABLE IF NOT EXISTS screen_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     timezone TEXT NOT NULL,
     safety_start_date TEXT,
+    show_logo INTEGER NOT NULL DEFAULT 0 CHECK (show_logo IN (0, 1)),
+    show_login_logo INTEGER NOT NULL DEFAULT 1 CHECK (show_login_logo IN (0, 1)),
+    show_sidebar_logo INTEGER NOT NULL DEFAULT 1 CHECK (show_sidebar_logo IN (0, 1)),
     version INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
 );
@@ -137,4 +140,4 @@ CREATE TABLE IF NOT EXISTS record_attribution (
     PRIMARY KEY (record_type, record_key)
 );
 
-PRAGMA user_version = 7;
+PRAGMA user_version = 9;

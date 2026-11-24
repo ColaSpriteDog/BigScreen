@@ -123,4 +123,4 @@ def test_legacy_database_migration_adds_default_without_changing_data_or_actor(c
     restored = upgraded.get('/api/editor').get_json()
     assert restored == original
     with connect_database(app.config['DATABASE']) as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0] == 7
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 9

@@ -23,7 +23,11 @@ def rows(db, query, parameters=()):
 
 def settings(db):
     """读取统一业务设置；db 为数据库连接；返回设置字典。"""
-    return dict(db.execute("SELECT * FROM screen_settings WHERE id=1").fetchone())
+    config = dict(db.execute("SELECT * FROM screen_settings WHERE id=1").fetchone())
+    # 接口统一使用布尔值，避免前端将数据库整数与开关状态混用。
+    for field in ("show_logo", "show_login_logo", "show_sidebar_logo"):
+        config[field] = bool(config[field])
+    return config
 
 
 def production_unit(line_id):
@@ -307,6 +311,7 @@ def dashboard_snapshot(db, now):
         process["alert"] = process["status"] not in {"running", "normal"}
     safe_start = snapshot["settings"]["safety_start_date"]
     return {"version": snapshot["version"], "updated_at": snapshot["updated_at"], "server_time": now.isoformat(),
+            "show_logo": snapshot["settings"]["show_logo"],
             "business_date": day, "production_date": production_date, "timezone": zone, "lines": lines, "inventory": inventory,
             "trend": {"dates": dates, "series": series, "totals": totals, "groups": groups,
                       "period_total": groups[0]["period_total"] if len(groups) == 1 else None, "reported_days": reported_days},
@@ -559,6 +564,16 @@ def save_settings(db, payload, now):
     except (ZoneInfoNotFoundError, ValueError) as exc:
         raise ValidationError("业务时区不存在") from exc
     safety_date = payload.get("safety_start_date") or None
+    # 旧客户端省略开关时保留已有值，只接受明确的布尔选择。
+    current_settings = settings(db)
+    logo_visibility = {}
+    for field, error in (("show_logo", "大屏 Logo 显示必须为布尔值"),
+                         ("show_login_logo", "登录页 Logo 显示必须为布尔值"),
+                         ("show_sidebar_logo", "侧栏 Logo 显示必须为布尔值")):
+        value = payload.get(field, current_settings[field])
+        if type(value) is not bool:
+            raise ValidationError(error)
+        logo_visibility[field] = int(value)
     if safety_date and parse_date(safety_date) > now.astimezone(ZoneInfo(zone)).date():
         raise ValidationError("安全起算日期不能晚于今天")
     lines = array_value(payload.get("lines"), "产线配置", 20)
@@ -593,7 +608,10 @@ def save_settings(db, payload, now):
         if not isinstance(state, str) or state not in {"normal", *STOP_KINDS}:
             raise ValidationError("工序状态不正确")
         db.execute("UPDATE process_node SET manual_status=? WHERE id=?", (state, node["id"]))
-    db.execute("UPDATE screen_settings SET timezone=?,safety_start_date=? WHERE id=1", (zone, safety_date))
+    db.execute("UPDATE screen_settings SET timezone=?,safety_start_date=?,show_logo=?,show_login_logo=?,"
+               "show_sidebar_logo=? WHERE id=1",
+               (zone, safety_date, logo_visibility["show_logo"], logo_visibility["show_login_logo"],
+                logo_visibility["show_sidebar_logo"]))
 
 
 def start_downtime(db, payload, now):

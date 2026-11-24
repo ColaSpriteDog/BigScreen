@@ -2,6 +2,10 @@
 
 页面与接口由同一个 Flask 服务提供。写入请求使用 `application/json`，成功返回新版本；错误返回 `{"error":"中文错误信息"}`。
 
+`GET /api/editor` 的 `settings.show_logo` 与 `GET /api/dashboard` 的 `show_logo` 返回大屏 Logo 显示开关（布尔值），默认 `false`。后台“流程与设置”的“显示大屏 Logo”随“保存设置”提交；`PUT /api/settings` 可提交 `show_logo: true/false`，省略时保留已有配置，其他类型返回 400。设置持久化并记录最后修改人，大屏自动读取；隐藏时保留占位以维持标题居中。
+
+后台登录页和左侧菜单分别由 `settings.show_login_logo`、`settings.show_sidebar_logo` 控制，均为布尔值且默认 `true`，旧库升级保持原先显示状态。两个开关与 `show_logo` 独立，通过“流程与设置”保存，`PUT /api/settings` 省略字段时保留已有值，非法类型返回 400；修改同步记录人员信息。登录页在每次打开或刷新时由服务端直接应用配置，侧栏在读取已保存快照后应用配置；隐藏均保留原占位。
+
 除 `/api/health`、`/api/dashboard` 和 `/api/auth/login` 外，全部 API 均要求登录 Cookie，未登录或会话失效返回 HTTP 401；`/edit` 未登录跳转 `/login`。跨站来源的写入返回 403。员工会话有效期 12 小时；停用、删除或改密后旧会话失效。大屏及其读取接口公开。
 
 | 方法 | 路径 | 用途 |

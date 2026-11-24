@@ -5,19 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>大屏数据编辑</title>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
-  <link rel="stylesheet" href="/static/css/editor.css?v=20261124-oee-guidance">
+  <link rel="stylesheet" href="/static/css/editor.css?v=20261124-logo-settings-layout">
   <script defer src="/static/vendor/vue.global.prod.js"></script>
   <script defer src="/static/vendor/element-plus.js"></script>
   <script defer src="/static/vendor/element-plus-zh-cn.js"></script>
   <script defer src="/static/js/model.js?v=20261124-oee-guidance"></script>
   <script defer src="/static/js/api.js?v=20261123-import"></script>
-  <script defer src="/static/js/editor.js?v=20261124-oee-guidance"></script>
+  <script defer src="/static/js/editor.js?v=20261124-backend-logo-settings"></script>
 </head>
 <body>
   <div id="bootStatus" role="status">正在加载编辑页面…</div>
   <div id="editorApp" v-cloak>
     <aside class="editor-sidebar">
-      <div class="sidebar-brand"><img src="/assets/gulian-logo.png" alt="固联轻量化" width="136" height="35"></div>
+      <!-- 保留侧栏品牌区域占位，避免显示开关导致菜单位置跳动。 -->
+      <div class="sidebar-brand"><img :style="{visibility:showSidebarLogo?'visible':'hidden'}" src="/assets/gulian-logo.png" alt="固联轻量化" width="136" height="35"></div>
       <nav class="sidebar-nav" role="tablist" aria-label="编辑模块" aria-orientation="vertical">
         <button v-for="item in modules" :key="item.id" type="button" class="module-tab" role="tab" :id="'tab-'+item.id" :aria-controls="'panel-'+item.id" :aria-selected="activeTab===item.id" :tabindex="activeTab===item.id?0:-1" :disabled="loading||saving" @click="switchModule(item.id)" @keydown="navigateModules($event,item.id)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="item.icon"></path></svg><span>{{item.label}}</span>
@@ -137,6 +138,12 @@
         <section v-show="activeTab==='settings'" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" data-testid="settings-panel">
           <div class="section-toolbar"><h2>业务设置</h2><record-audit :meta="settingsForm._audit" :timezone="timezone" prefix="最后修改："></record-audit></div>
           <el-form label-position="top" class="settings-form editor-card" @submit.prevent><el-form-item label="业务时区" :class="{'is-changed':hasChanged('settings',null,'timezone')}"><el-select v-model="settingsForm.timezone" filterable allow-create @change="markDirty('settings')" aria-label="业务时区"><el-option label="中国标准时间（Asia/Shanghai）" value="Asia/Shanghai"></el-option><el-option label="底特律（America/Detroit）" value="America/Detroit"></el-option><el-option label="UTC" value="UTC"></el-option></el-select></el-form-item><el-form-item label="安全生产起算日期" :class="{'is-changed':hasChanged('settings',null,'safety_start_date')}"><el-date-picker v-model="settingsForm.safety_start_date" type="date" value-format="YYYY-MM-DD" @change="markDirty('settings')" aria-label="安全生产起算日期" id="safety-date" data-testid="safety-date"></el-date-picker></el-form-item>
+            <!-- 与其他业务设置一起保存，沿用草稿变更提示。 -->
+            <div class="logo-visibility-settings">
+              <el-form-item class="logo-visibility-item" label="显示大屏 Logo" :class="{'is-changed':hasChanged('settings',null,'show_logo')}"><el-switch v-model="settingsForm.show_logo" :width="56" inline-prompt active-text="显示" inactive-text="隐藏" @change="markDirty('settings')" aria-label="显示大屏 Logo" data-testid="show-logo"></el-switch></el-form-item>
+              <el-form-item class="logo-visibility-item" label="显示登录页 Logo" :class="{'is-changed':hasChanged('settings',null,'show_login_logo')}"><el-switch v-model="settingsForm.show_login_logo" :width="56" inline-prompt active-text="显示" inactive-text="隐藏" @change="markDirty('settings')" aria-label="显示登录页 Logo" data-testid="show-login-logo"></el-switch></el-form-item>
+              <el-form-item class="logo-visibility-item" label="显示侧栏 Logo" :class="{'is-changed':hasChanged('settings',null,'show_sidebar_logo')}"><el-switch v-model="settingsForm.show_sidebar_logo" :width="56" inline-prompt active-text="显示" inactive-text="隐藏" @change="markDirty('settings')" aria-label="显示侧栏 Logo" data-testid="show-sidebar-logo"></el-switch></el-form-item>
+            </div>
           </el-form>
           <div class="section-toolbar"><h2>产线配置</h2><span class="trend-selection-count">{{trendLineCount}} 条已选入趋势图</span></div><div class="editor-card"><el-table :data="settingsForm.lines" row-key="id" class="editable-table" data-testid="line-settings-table" :row-class-name="scope=>rowClass('settings','lines',scope.row)" :cell-class-name="scope=>cellClass('settings','lines',scope)"><el-table-column prop="code" label="编号" width="90"></el-table-column><el-table-column prop="name" label="产线名称" min-width="230"><template #default="scope"><div class="line-name-input"><i class="line-dot" :style="{backgroundColor:lineColor(scope.row.id)}" aria-hidden="true"></i><el-input v-model="scope.row.name" maxlength="20" @input="markDirty('settings')" :aria-label="'产线名称 '+scope.row.code"></el-input></div></template></el-table-column><el-table-column prop="standard_qty" label="标准日产量" min-width="200" class-name="capacity-unit-cell"><template #default="scope"><el-input-number v-model="scope.row.standard_qty" :min="0" :precision="scope.row.id===1?undefined:0" :controls="false" @change="markDirty('settings')" :aria-label="'标准日产量 '+scope.row.code"></el-input-number><span>{{scope.row.id===1?'（米）':'（件）'}}</span></template></el-table-column>
             <!-- 理论产能固定按小时填写，单位与日产量一致，避免班次长短影响设备基准。 -->

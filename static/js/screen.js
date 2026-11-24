@@ -298,6 +298,8 @@
     try {
       const data = await BoardAPI.request("/api/dashboard", { timeout: 4000 });
       lastData = data;
+      // 隐藏品牌但保留网格占位，标题居中位置不随开关变化。
+      document.querySelector(".company-brand").style.visibility = data.show_logo === true ? "visible" : "hidden";
       serverOffset = Date.parse(data.server_time) - Date.now();
       renderLines(data.lines);
       renderInventory(data.inventory);

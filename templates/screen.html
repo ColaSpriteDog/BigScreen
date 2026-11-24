@@ -8,12 +8,13 @@
   <script defer src="/static/vendor/echarts.min.js"></script>
   <script defer src="/static/js/model.js?v=20261124-trend-a-label-top"></script>
   <script defer src="/static/js/api.js?v=20261123-import"></script>
-  <script defer src="/static/js/screen.js?v=20261124-trend-per-line"></script>
+  <script defer src="/static/js/screen.js?v=20261124-logo-setting"></script>
 </head>
 <body>
   <svg class="symbol-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><symbol id="safety-icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter"><path d="m12 2 8 4v7c0 4-5 7-8 9-3-2-8-5-8-9V6l8-4Z"/><path d="m8 12 3 3 5-6"/></g></symbol></svg>
   <header>
-    <div class="company-brand"><img class="company-logo" src="/assets/gulian-logo.png" width="1200" height="304" alt="固联轻量化公司标志"></div>
+    <!-- 配置加载前隐藏 Logo，显示状态由后台设置控制，保留占位以维持标题居中。 -->
+    <div class="company-brand" style="visibility: hidden;"><img class="company-logo" src="/assets/gulian-logo.png" width="1200" height="304" alt="固联轻量化公司标志"></div>
     <h1>智能制造生产监控中心</h1>
     <div class="header-meta"><a class="data-source" id="connectionStatus" href="/edit" aria-label="打开数据编辑页面" role="status">连接中</a><time class="time" id="currentTime"></time></div>
   </header>

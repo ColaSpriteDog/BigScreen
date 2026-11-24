@@ -80,6 +80,16 @@ def initialize_database(path, zone, timestamp):
             if column not in daily_columns:
                 connection.execute(f"ALTER TABLE production_daily ADD COLUMN {column} REAL")
         migrate_shipment_details(connection)
+        # 新旧库均默认隐藏 Logo，重复启动保留后台已保存的显示选择。
+        settings_columns = {row["name"] for row in connection.execute("PRAGMA table_info(screen_settings)")}
+        if "show_logo" not in settings_columns:
+            connection.execute("ALTER TABLE screen_settings ADD COLUMN show_logo INTEGER NOT NULL DEFAULT 0 "
+                               "CHECK (show_logo IN (0, 1))")
+        # 后台新增开关沿用原先显示状态，不覆盖升级前已保存的大屏选择。
+        for column in ("show_login_logo", "show_sidebar_logo"):
+            if column not in settings_columns:
+                connection.execute(f"ALTER TABLE screen_settings ADD COLUMN {column} INTEGER NOT NULL DEFAULT 1 "
+                                   f"CHECK ({column} IN (0, 1))")
         # 旧库原材料默认全部显示；升级仅补充配置列，保留库存及人员记录。
         raw_columns = {row["name"] for row in connection.execute("PRAGMA table_info(raw_material_stock)")}
         if "show_on_screen" not in raw_columns:

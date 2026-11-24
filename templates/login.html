@@ -34,7 +34,8 @@
         
         <!-- 左侧视觉区 -->
         <div class="brand-area">
-            <div class="logo-box">
+            <!-- 隐藏时保留视觉区占位，登录表单及标语位置保持稳定。 -->
+            <div class="logo-box"{% if not show_login_logo %} style="visibility: hidden;"{% endif %}>
                 <img class="brand-logo" src="/assets/gulian-logo-login.png" alt="&#22266;&#32852;&#36731;&#37327;&#21270;" width="360" height="91">
             </div>
             <h2 class="slogan">让数据<span>可视化</span>更简单</h2>
