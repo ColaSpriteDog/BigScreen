@@ -51,6 +51,8 @@ def test_production_preview_cancel_save_and_mixed_units(ui_context, live_server,
     screen.goto(live_server + '/screen')
     expect(screen.locator('#connectionStatus')).to_have_text('数据已同步')
     expect(screen.locator('#trendTotal')).to_have_text('本月累计：100.13（米） / 300（件）')
+    for identifier in (1, 2):
+        expect(screen.locator(f'.line-card[data-line-id="{identifier}"] .line-state')).to_have_text('运行中 100%')
     expect(screen.locator('.line-card[data-line-id="1"] .data-list > div').nth(2)).to_have_text('本月产量（米）100.13')
     chart = screen.evaluate("echarts.getInstanceByDom(document.querySelector('#newTrendChart')).getOption()")
     assert [axis['name'] for axis in chart['yAxis']] == ['产量（米）', '产量（件）']

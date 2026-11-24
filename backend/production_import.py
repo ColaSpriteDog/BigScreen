@@ -26,6 +26,12 @@ LAYOUTS = (
 )
 
 HOUR_ROWS = {1: (24, 34), 2: (21, 39), 3: (23, 36), 4: (23, 36)}
+# 落料线使用全天停机合计；点焊线汇总白夜班 R4/R5/R6 明细，避免遗漏设备停机。
+STOP_ROWS = {
+    1: ((41, "异常停机工时"),),
+    2: ((26, "异常停机工时R4"), (31, "异常停机工时R5"), (36, "异常停机工时R6"),
+        (44, "异常停机工时R4"), (49, "异常停机工时R5"), (54, "异常停机工时R6")),
+}
 
 
 def displayed_hours(value, number_format):
@@ -53,6 +59,11 @@ def parse_daily_hours(data, day, identifier, sheet, formula_cells, number_format
         raw = data[row - 1][column] if row <= len(data) and column < len(data[row - 1]) else None
         if raw is INVALID_CELL:
             raise ValidationError(label + "工时公式缓存缺失或错误")
+        # 工时允许附带 H/h 单位；仅接受数值前缀，故障说明等文本仍交由数字校验拦截。
+        if isinstance(raw, str):
+            matched = re.fullmatch(r"\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*[Hh]\s*", raw)
+            if matched:
+                raw = matched[1]
         return stock_number(raw, label + "工时", optional=True)
 
     planned = None
@@ -69,7 +80,23 @@ def parse_daily_hours(data, day, identifier, sheet, formula_cells, number_format
         planned = float(sum(Decimal(str(value)) for value in values))
         if planned > 24:
             raise ValidationError(f"“{sheet}”第 {day} 日白夜班总工时不能超过 24 小时")
-        if identifier in (3, 4):
+    except ValidationError as error:
+        planned = None
+        warnings.append(str(error))
+    try:
+        if identifier in STOP_ROWS:
+            stops = []
+            for row, label in STOP_ROWS[identifier]:
+                if row > len(data) or cell_text(data[row - 1][1]) != label:
+                    raise ValidationError(f"“{sheet}”第 {row} 行应为“{label}”，请核对异常停机行")
+                # 仅已录入产量且停机行存在时，空白明细按无停机处理；缓存错误仍由 hours 拦截。
+                stops.append(hours(row) or 0)
+            total = float(sum(Decimal(str(value)) for value in stops))
+            if total > 24 or (planned is not None and total > planned + 1e-8):
+                raise ValidationError(f"“{sheet}”第 {day} 日异常停机合计超过计划工时，请核对停机明细")
+            # 源计划工时异常时仍提取有效停机值；保存时按保留的计划工时再次校验。
+            abnormal = total
+        elif planned is not None:
             stops = []
             for index, candidates in enumerate(((28,), (33,), (41,), (45, 46))):
                 matching = [row for row in candidates if row <= len(data)
@@ -77,10 +104,11 @@ def parse_daily_hours(data, day, identifier, sheet, formula_cells, number_format
                 if len(matching) != 1:
                     raise ValidationError(f"“{sheet}”第 {candidates[0]} 行附近缺少唯一的异常停机工时")
                 row = matching[0]
-                formula = formula_cells.get((row, column), "")
+                # 数据数组使用零基列号，Excel 公式和格式映射使用一基列号，必须核对当前日期的同一单元格。
+                formula = formula_cells.get((row, column + 1), "")
                 # 源模板曾将报废率公式放在停机行，不能把其缓存小数当成小时。
                 rate_formula = rf"=\$?[A-Z]+\$?{44}\s*/\s*\$?[A-Z]+\$?{43}"
-                if formula == "%" or (index == 3 and re.fullmatch(rate_formula, formula, re.IGNORECASE)):
+                if formula == "%" or "%" in (number_formats or {}).get((row, column + 1), "") or (index == 3 and re.fullmatch(rate_formula, formula, re.IGNORECASE)):
                     raise ValidationError(f"“{sheet}”第 {day} 日第 {row} 行是报废率公式，请修正异常停机行")
                 stop = hours(row) or 0
                 if stop > values[index // 2] + 1e-8:

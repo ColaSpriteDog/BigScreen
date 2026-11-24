@@ -114,7 +114,7 @@ def create_app(configuration=None):
         now = app.config["NOW_PROVIDER"]()
         with service.versioned_write(db, payload, now, g.employee, audit.write_scope(writer.__name__, arguments)):
             result = writer(db, payload, *arguments, now) if writer in {
-                service.save_production, service.save_production_import, service.save_settings, service.start_downtime} else writer(db, payload, *arguments)
+                service.save_production, service.save_production_import, service.save_settings} else writer(db, payload, *arguments)
         return jsonify(version=service.settings(db)["version"], updated_at=now.isoformat(), result=result)
 
     @app.get("/")
@@ -317,20 +317,5 @@ def create_app(configuration=None):
     def settings_write():
         """保存统一配置；JSON 为产线及业务设置；返回保存后的版本。"""
         return mutate(service.save_settings)
-
-    @app.post("/api/downtime/start")
-    def downtime_start():
-        """立即开始停机；JSON 提供产线及原因；返回新记录ID和新版本。"""
-        return mutate(service.start_downtime)
-
-    @app.post("/api/downtime/<int:identifier>/finish")
-    def downtime_finish(identifier):
-        """恢复运行；identifier 为未结束停机ID；返回保存后的版本。"""
-        payload = service.object_value(request.get_json())
-        db = get_db()
-        now = app.config["NOW_PROVIDER"]()
-        with service.versioned_write(db, payload, now, g.employee, audit.write_scope("finish_downtime", ())):
-            service.finish_downtime(db, identifier, now)
-        return jsonify(version=service.settings(db)["version"], updated_at=now.isoformat())
 
     return app

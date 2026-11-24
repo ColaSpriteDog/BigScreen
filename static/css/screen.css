@@ -31,7 +31,7 @@
         .line-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-soft); padding-bottom: 7px; margin-bottom: 7px; font-weight: 700; font-size: 14px; }
         .line-header > span { border-left: 3px solid var(--green); padding-left: 8px; line-height: 16px; }
         .line-icon { display: none; }
-        .line-indicators { display: flex; align-items: center; gap: 6px; }
+        .line-indicators { display: flex; flex-shrink: 0; align-items: center; gap: 6px; }
         .line-index { color: var(--text-sub); font: 700 13px var(--font-number); }
         .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: status-breathe 3s ease-in-out infinite; }
         .symbol-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
@@ -44,12 +44,16 @@
         .progress-bar { height: 4px; margin-top: 6px; background: var(--surface-raised); border-radius: 3px; overflow: hidden; }
         .progress-inner { height: 100%; width: 96%; background: var(--green); border-radius: inherit; }
         .progress-inner.warn { width: 91%; background: var(--orange); }
-        .is-maintenance { background: #2c241d; border-color: #9a692b; }
-        .is-maintenance .line-header { border-color: #594126; }
-        .is-maintenance .line-header > span { border-color: var(--orange); }
-        .is-maintenance .line-index, .is-maintenance .data-list > div:nth-child(2) .val { color: var(--orange); }
-        .is-maintenance .status-dot { background: var(--orange); animation: none; }
-        .is-maintenance .progress-bar { background: #493622; }
+        /* 建设中沿用原有橙色标识，状态点保持静止。 */
+        .is-maintenance, .line-card.is-construction { background: #2c241d; border-color: #9a692b; }
+        .is-maintenance .line-header, .is-construction .line-header { border-color: #594126; }
+        .is-maintenance .line-header > span, .is-construction .line-header > span { border-color: var(--orange); }
+        .is-maintenance .line-index, .is-maintenance .data-list > div:nth-child(2) .val,
+        .is-construction .line-index, .is-construction .data-list > div:nth-child(2) .val { color: var(--orange); }
+        .is-maintenance .status-dot, .is-construction .status-dot { background: var(--orange); animation: none; }
+        .is-maintenance .progress-bar, .is-construction .progress-bar { background: #493622; }
+        .line-state { color: var(--green); white-space: nowrap; }
+        .is-maintenance .line-state, .is-construction .line-state { color: var(--orange); }
         .inventory-panel { grid-column: 1; grid-row: 2 / 5; }
         .inventory-panel > .panel-title { border-color: var(--cyan); }
         .inv-summary { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 8px; margin-bottom: 10px; flex-shrink: 0; container-type: inline-size; }
@@ -130,8 +134,8 @@
         .step-status::before { content: ''; width: 5px; height: 5px; background: currentColor; border-radius: 50%; flex-shrink: 0; }
         .process-connector { position: absolute; left: calc(100% + 3px); top: 50%; width: 17px; height: 12px; transform: translateY(-50%); color: var(--cyan); pointer-events: none; }
         .process-connector svg { display: block; width: 100%; height: 100%; }
-        .process-step.is-maintenance { background: radial-gradient(ellipse at 50% 38%, rgba(255, 157, 35, .18), transparent 78%), #302719; border-color: var(--orange); box-shadow: 0 0 10px rgba(255, 157, 35, .2), inset 0 0 12px rgba(255, 157, 35, .08); }
-        .process-step.is-maintenance .step-status { color: #ffce86; background: rgba(255, 157, 35, .18); border-color: rgba(255, 157, 35, .45); }
+        .process-step.is-maintenance, .process-step.is-construction { background: radial-gradient(ellipse at 50% 38%, rgba(255, 157, 35, .18), transparent 78%), #302719; border-color: var(--orange); box-shadow: 0 0 10px rgba(255, 157, 35, .2), inset 0 0 12px rgba(255, 157, 35, .08); }
+        .process-step.is-maintenance .step-status, .process-step.is-construction .step-status { color: #ffce86; background: rgba(255, 157, 35, .18); border-color: rgba(255, 157, 35, .45); }
         .process-step.is-maintenance .step-status::before { display: none; }
         .process-alert { position: absolute; right: -7px; top: -8px; display: flex; align-items: center; justify-content: center; width: 21px; height: 21px; background: var(--orange); border: 1px solid #ffd28f; border-radius: 50%; color: #30200d; box-shadow: 0 0 8px rgba(255, 157, 35, .4); }
         .process-alert svg { width: 14px; height: 14px; }

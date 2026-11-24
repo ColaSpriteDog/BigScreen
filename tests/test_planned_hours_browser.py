@@ -10,36 +10,32 @@ from tests.test_browser import fill_control
 
 
 @pytest.mark.parametrize('width,height', [(1440, 900), (375, 812)])
-def test_month_long_stop_shows_zero_in_editor_and_screen(ui_context, live_server, client, width, height):
-    """验证整月停机显示；上下文、服务、客户端和尺寸为参数；断言后台与大屏按完整配置显示零运行率。"""
+def test_daily_full_stop_shows_zero_without_changing_line_status(ui_context, live_server, client, width, height):
+    """验证日报全停机；参数为隔离环境及尺寸；断言开动率为零且独立状态保持运行，不再出现停机时段入口。"""
     draft = production_payload(client)
-    draft['lines'][3]['planned_hours'] = 20.4
-    # 留空异常停机工时，确保运行率仅使用配置的起止时段。
-    draft['downtimes'] = [{'line_id': 4, 'start_at': '2026-11-01T00:00:00',
-                           'end_at': '2026-11-30T23:59:00', 'kind': 'stopped', 'note': '设备未入场'}]
+    draft['lines'][3].update(actual_qty=0, defect_qty=0, planned_hours=20.4, abnormal_hours=20.4)
     assert client.put('/api/production/2026-11-21', json=draft).status_code == 200
     line = client.get('/api/dashboard').get_json()['lines'][3]
-    assert line['runtime_rate'] == 0 and line['downtime_minutes'] == 1440
-    assert line['abnormal_hours'] is None
+    assert line['runtime_rate'] == 0 and line['status'] == 'running'
     page = ui_context.new_page()
     page.set_viewport_size({'width': width, 'height': height})
     page.goto(live_server + '/edit')
     expect(page.get_by_test_id('save-button')).to_be_enabled()
+    expect(page.get_by_test_id('downtime-table')).to_have_count(0)
+    expect(page.get_by_role('button', name='开始停机', exact=False)).to_have_count(0)
     row = page.get_by_test_id('production-table').locator('.el-table__body-wrapper tbody tr').nth(3)
-    expect(row.locator('.status-pill')).to_have_text('停机')
+    expect(row.locator('.status-pill')).to_have_text('运行中')
     expect(row.locator('td').nth(10)).to_have_text('0%')
     page.goto(live_server + '/screen')
     card = page.locator('.line-card[data-line-id="4"]')
-    expect(card.locator('.data-list > div').last).to_have_text('运行状态停机 0%')
-    expect(card.locator('.progress-inner')).to_have_css('width', '0px')
+    expect(card.locator('.data-list > div').last).to_have_text('运行状态运行中 0%')
 
 
 @pytest.mark.parametrize('width,height', [(1440, 900), (375, 812)])
 def test_planned_hours_edit_save_and_screen_rate(ui_context, live_server, client, width, height):
     """验证计划时长交互；上下文、服务、客户端及视口尺寸为参数；断言十二小时扣一小时、零小数及刷新持久化。"""
     draft = production_payload(client)
-    draft['downtimes'] = [{'line_id': 1, 'start_at': '2026-11-21T09:00:00',
-                           'end_at': '2026-11-21T10:00:00', 'kind': 'stopped'}]
+    draft['lines'][0]['abnormal_hours'] = 1
     assert client.put('/api/production/2026-11-21', json=draft).status_code == 200
     editor = ui_context.new_page()
     screen = ui_context.new_page()
@@ -63,7 +59,7 @@ def test_planned_hours_edit_save_and_screen_rate(ui_context, live_server, client
     data = client.get('/api/dashboard').get_json()['lines']
     assert [line['planned_hours'] for line in data] == [12, 0, 7.5, 24]
     assert data[1]['runtime_rate'] is None
-    expect(screen.locator('.line-card[data-line-id="2"] .data-list > div').last).to_contain_text('—')
+    expect(screen.locator('.line-card[data-line-id="2"] .data-list > div').last).to_have_text('运行状态运行中')
     editor.reload()
     expect(editor.get_by_test_id('save-button')).to_be_enabled()
     assert float(editor.get_by_test_id('planned-hours-1').locator('input').input_value()) == 12

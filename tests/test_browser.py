@@ -186,9 +186,10 @@ def test_production_and_sales_forms_update_actual_charts(ui_context, live_server
     expect(screen.locator('#shipmentRate')).to_have_text('53%')
     screen.wait_for_function("echarts.getInstanceByDom(document.querySelector('#shipmentChart')).getOption().series[0].data[0] === 3200")
     assert screen.evaluate("echarts.getInstanceByDom(document.querySelector('#shipmentChart')).getOption().yAxis[0].data") == ['P-300', 'P-200', 'P-100']
-    draft = production_payload(client)
-    draft['downtimes'] = [{'line_id': 4, 'start_at': '2026-11-21T11:00:00', 'end_at': '2026-11-21T13:00:00', 'kind': 'maintenance'}]
-    assert client.put('/api/production/2026-11-21', json=draft).status_code == 200
+    from tests.test_api import settings_payload
+    config = settings_payload(client)
+    config['lines'][3]['manual_status'] = 'maintenance'
+    assert client.put('/api/settings', json=config).status_code == 200
     expect(screen.locator('.line-card[data-line-id="4"]')).to_have_attribute('data-state', 'maintenance')
     expect(screen.locator('.process-step[data-process-id="4"] .step-status')).to_have_text('B线维护')
     assert screen.evaluate('document.documentElement.scrollWidth') == 1440
@@ -214,22 +215,23 @@ def test_settings_form_saves_safety_start(ui_context, live_server):
     expect(screen.locator('.line-card[data-line-id="1"] .data-list > div').first).to_have_text('标准产量（米/天）1,320')
 
 
-def test_quick_maintenance_and_resume_from_editor(ui_context, live_server, clock):
-    """验证快捷停机操作；参数为页面、服务和时钟；断言维护、恢复同步到产线和流程。"""
-    from datetime import timedelta
-    editor = ui_context.new_page()
-    screen = ui_context.new_page()
+def test_manual_maintenance_and_resume_from_settings(ui_context, live_server):
+    """验证手动状态切换；参数为浏览器和服务；断言维护、运行状态通过保存设置同步到产线和流程。"""
+    editor, screen = ui_context.new_page(), ui_context.new_page()
     editor.goto(live_server + '/edit')
     screen.goto(live_server + '/screen')
     expect(editor.get_by_test_id('save-button')).to_be_enabled()
-    editor.get_by_role('button', name='开始停机 ▾', exact=True).nth(3).click()
-    editor.get_by_role('menuitem', name='维护', exact=True).click()
+    editor.get_by_role('tab', name='流程与设置', exact=True).click()
+    editor.get_by_test_id('line-status-4').click()
+    editor.get_by_role('option', name='维护', exact=True).click()
+    editor.get_by_test_id('save-button').click()
+    expect(editor.get_by_test_id('save-status')).to_have_text('所有修改已保存')
     expect(screen.locator('.line-card[data-line-id="4"]')).to_have_attribute('data-state', 'maintenance')
-    expect(editor.get_by_role('button', name='恢复运行', exact=True)).to_be_visible()
-    clock['now'] += timedelta(minutes=10)
-    editor.get_by_role('button', name='恢复运行', exact=True).click()
+    editor.get_by_test_id('line-status-4').click()
+    editor.get_by_role('option', name='运行中', exact=True).click()
+    editor.get_by_test_id('save-button').click()
     expect(screen.locator('.line-card[data-line-id="4"]')).to_have_attribute('data-state', 'running')
-    expect(screen.locator('.line-card[data-line-id="4"]')).to_contain_text('99.3%')
+    expect(screen.locator('.line-card[data-line-id="4"] .data-list > div').last).to_have_text('运行状态运行中')
 
 
 def test_validation_failure_keeps_draft_and_does_not_publish(ui_context, live_server):
@@ -351,18 +353,14 @@ def test_screen_layout_and_local_images(ui_context, live_server, width, height):
         assert page.evaluate('document.documentElement.scrollHeight') == height
 
 
-def test_manual_stop_time_entry_drives_runtime(ui_context, live_server):
-    """验证手工时间录入；参数为页面和服务；断言用户填写的时段直接参与运行率计算。"""
+def test_abnormal_daily_hours_drive_availability(ui_context, live_server):
+    """验证异常停机录入；参数为浏览器与服务；断言填写小时后同步开动率，独立状态保持运行。"""
     editor = ui_context.new_page()
     screen = ui_context.new_page()
     editor.goto(live_server + '/edit')
     screen.goto(live_server + '/screen')
     expect(editor.get_by_test_id('save-button')).to_be_enabled()
-    editor.get_by_role('button', name='新增时段', exact=True).click()
-    fill_control(editor, 'stop-start-0', '2026-11-21 09:00')
-    editor.locator('input#stop-start-0').press('Enter')
-    fill_control(editor, 'stop-end-0', '2026-11-21 10:00')
-    editor.locator('input#stop-end-0').press('Enter')
+    fill_control(editor, 'abnormal-hours-1', 1)
     editor.get_by_test_id('save-button').click()
     expect(screen.locator('.line-card[data-line-id="1"]')).to_contain_text('95.8%')
     expect(screen.locator('.line-card[data-line-id="1"]')).to_have_attribute('data-state', 'running')
@@ -571,13 +569,11 @@ def test_process_connectors_flow_without_reset_on_unchanged_poll(ui_context, liv
 
 @pytest.mark.parametrize('kind', ['maintenance', 'fault', 'stopped'])
 def test_abnormal_process_stops_only_adjacent_connectors_and_resumes(ui_context, live_server, client, clock, kind):
-    """验证异常联动和恢复；kind 为停机类型；断言两侧静止橙色、其他连接正常且时间结束自动恢复。"""
-    from datetime import datetime, timezone
-    from tests.test_api import production_payload
-    draft = production_payload(client)
-    draft['downtimes'] = [{'line_id': 4, 'start_at': '2026-11-21T11:00:00',
-                           'end_at': '2026-11-21T13:00:00', 'kind': kind}]
-    assert client.put('/api/production/2026-11-21', json=draft).status_code == 200
+    """验证异常联动和恢复；kind 为停机类型；断言两侧静止橙色、其他连接正常且手动恢复后更新。"""
+    from tests.test_api import settings_payload
+    config = settings_payload(client)
+    config['lines'][3]['manual_status'] = kind
+    assert client.put('/api/settings', json=config).status_code == 200
     page = ui_context.new_page()
     page.emulate_media(reduced_motion='no-preference')
     page.goto(live_server + '/screen')
@@ -591,7 +587,9 @@ def test_abnormal_process_stops_only_adjacent_connectors_and_resumes(ui_context,
     assert page.locator('.process-connector').first.locator('.connector-stream').evaluate('(element)=>getComputedStyle(element).animationName') == 'process-flow-dash'
     assert page.evaluate('document.documentElement.scrollWidth') == 1440
     assert page.evaluate('document.documentElement.scrollHeight') == 720
-    clock['now'] = datetime(2026, 11, 21, 13, tzinfo=timezone.utc)
+    config = settings_payload(client)
+    config['lines'][3]['manual_status'] = 'running'
+    assert client.put('/api/settings', json=config).status_code == 200
     expect(page.locator('.process-connector[data-state="running"]')).to_have_count(4, timeout=10000)
     assert page.locator('.process-connector[data-state="stopped"]').count() == 0
 

@@ -24,7 +24,6 @@ def add_employee(client, username='worker'):
     ('get', '/api/editor'), ('get', '/api/employees'), ('get', '/api/auth/session'),
     ('put', '/api/production/2026-11-21'), ('put', '/api/inventory'),
     ('put', '/api/sales/2026-11'), ('put', '/api/settings'), ('put', '/api/employees'),
-    ('post', '/api/downtime/start'), ('post', '/api/downtime/1/finish'),
 ])
 def test_anonymous_cannot_access_editor_or_mutate(app, method, path):
     """验证未登录边界；app、method、path 指定隔离应用及受保护接口；断言请求返回 401。"""

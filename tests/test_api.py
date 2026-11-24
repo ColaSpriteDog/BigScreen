@@ -156,22 +156,24 @@ def test_sales_ranking_merges_part_numbers_and_keeps_zero_and_details(client):
     assert [item['quantity'] for item in client.get('/api/editor').get_json()['sales']['items']] == [30, 10, 20, 0]
 
 
-def test_downtime_automatically_updates_line_and_process(client, clock):
-    """验证停机联动；client、clock 为接口与可控时间；断言结束边界自动恢复且不用重新保存。"""
-    from datetime import datetime, timezone
+def test_manual_status_persists_independently_of_daily_hours(client, clock):
+    """验证状态与工时分离；client/clock 为客户端和时钟；断言异常工时算开动率，状态不会随时间自动恢复。"""
+    from datetime import timedelta
     draft = production_payload(client)
-    draft['downtimes'] = [{'line_id': 4, 'start_at': '2026-11-21T11:00:00',
-                           'end_at': '2026-11-21T13:00:00', 'kind': 'maintenance', 'note': ''}]
+    draft['lines'][3].update(planned_hours=20, abnormal_hours=4)
     assert client.put('/api/production/2026-11-21', json=draft).status_code == 200
+    config = settings_payload(client)
+    config['lines'][3]['manual_status'] = 'maintenance'
+    assert client.put('/api/settings', json=config).status_code == 200
     data = client.get('/api/dashboard').get_json()
     assert data['lines'][3]['status'] == 'maintenance'
-    assert data['lines'][3]['runtime_rate'] == 91.67
+    assert data['lines'][3]['runtime_rate'] == 80
     assert data['processes'][3]['status_label'] == 'B线维护'
-    clock['now'] = datetime(2026, 11, 21, 13, tzinfo=timezone.utc)
+    clock['now'] += timedelta(hours=1)
     fresh = client.get('/api/dashboard').get_json()
     assert fresh['version'] == data['version']
-    assert fresh['lines'][3]['status'] == 'running'
-    assert fresh['processes'][3]['status'] == 'running'
+    assert fresh['lines'][3]['status'] == 'maintenance'
+    assert fresh['lines'][3]['runtime_rate'] == 80
 
 
 def test_stale_save_cannot_overwrite_latest_data(client):
@@ -212,34 +214,15 @@ def test_settings_safety_days_and_persistence_after_restart(client, app, clock):
     assert result['version'] == 1
 
 
-def test_quick_stop_and_resume_are_versioned_and_idempotent_on_retry(client, clock):
-    """验证即时操作；client、clock 为接口及时间；断言重复开始、重复结束均不产生重复记录。"""
-    from datetime import timedelta
-    started = client.post('/api/downtime/start', json={'version': 0, 'line_id': 4, 'kind': 'maintenance'})
-    assert started.status_code == 200
-    identifier = started.get_json()['result']
-    assert client.post('/api/downtime/start', json={'version': 0, 'line_id': 4, 'kind': 'maintenance'}).status_code == 409
-    assert client.post('/api/downtime/start', json={'version': 1, 'line_id': 4, 'kind': 'maintenance'}).status_code == 409
-    clock['now'] += timedelta(minutes=10)
-    assert client.post(f'/api/downtime/{identifier}/finish', json={'version': 1}).status_code == 200
-    assert client.post(f'/api/downtime/{identifier}/finish', json={'version': 2}).status_code == 409
-    data = client.get('/api/dashboard').get_json()
-    assert data['lines'][3]['status'] == 'running'
-    assert data['lines'][3]['runtime_rate'] == 99.31
-    assert len(client.get('/api/editor').get_json()['production']['downtimes']) == 1
+def test_retired_downtime_routes_do_not_mutate_data(client):
+    """验证时段接口下线；client 为已登录接口；断言旧入口返回不存在，业务数据及版本保持不变。"""
+    before = client.get('/api/editor').get_json()
+    assert client.post('/api/downtime/start', json={'version': 0, 'line_id': 4, 'kind': 'maintenance'}).status_code == 404
+    assert client.post('/api/downtime/1/finish', json={'version': 0}).status_code == 404
+    assert client.get('/api/editor').get_json() == before
 
 
-def test_cross_day_downtime_can_be_edited_from_following_day(client):
-    """验证跨天记录；client 为客户端；断言前日开始的记录也可在当日编辑。"""
-    draft = production_payload(client, '2026-11-20')
-    draft['downtimes'] = [{'line_id': 1, 'start_at': '2026-11-20T23:00:00',
-                           'end_at': '2026-11-21T01:00:00', 'kind': 'stopped'}]
-    assert client.put('/api/production/2026-11-20', json=draft).status_code == 200
-    current = production_payload(client)
-    assert len(current['downtimes']) == 1
-    current['downtimes'][0]['end_at'] = '2026-11-21T02:00:00'
-    assert client.put('/api/production/2026-11-21', json=current).status_code == 200
-    assert client.get('/api/dashboard').get_json()['lines'][0]['runtime_rate'] == 91.67
+
 
 
 def test_duplicate_parts_remain_separate_shipment_details(client):
@@ -384,15 +367,13 @@ def test_legacy_settings_payload_preserves_existing_trend_selection(client):
     assert [line['line_id'] for line in data['trend']['series']] == [3, 4]
 
 
-def test_renaming_retains_downtime_relationship_and_updates_alert_name(client):
-    """验证改名关联；client 为接口；断言保留固定 ID 的停机、产量和告警使用当前名称。"""
+def test_renaming_retains_manual_status_and_updates_alert_name(client):
+    """验证改名关联；client 为接口；断言保留固定 ID 的状态、产量和告警使用当前名称。"""
     draft = production_payload(client)
     draft['lines'][3].update(actual_qty=400, defect_qty=0)
-    draft['downtimes'] = [{'line_id': 4, 'start_at': '2026-11-21T11:00:00',
-                           'end_at': '2026-11-21T13:00:00', 'kind': 'maintenance'}]
     assert client.put('/api/production/2026-11-21', json=draft).status_code == 200
     config = settings_payload(client)
-    config['lines'][3]['name'] = '四号焊接设备'
+    config['lines'][3].update(name='四号焊接设备', manual_status='maintenance')
     assert client.put('/api/settings', json=config).status_code == 200
     data = client.get('/api/dashboard').get_json()
     assert data['lines'][3]['name'] == '四号焊接设备'

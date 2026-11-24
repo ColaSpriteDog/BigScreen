@@ -7,14 +7,13 @@ import json
 TABLES = {
     "production_daily": (("work_date", "line_id"), ("actual_qty", "defect_qty", "planned_hours", "abnormal_hours", "ideal_cycle_hours")),
     "daily_overview": (("work_date",), ("planned_qty", "actual_qty", "oee_percent", "quality_percent", "average_output")),
-    "line_downtime": (("id",), ("line_id", "start_at", "end_at", "kind", "note")),
     "raw_material_stock": (("id",), ("material", "warehouse", "specification", "position", "quantity", "unit", "weight_kg", "cuttable_qty", "show_on_screen")),
     "semi_finished_stock": (("id",), ("category", "material", "warehouse", "specification", "quantity", "unit", "show_on_screen")),
     "sales_month": (("month",), ("order_qty",)),
     "production_month_plan": (("month",), ("planned_qty",)),
     "shipment_month_item": (("id",), ("month", "part_no", "quantity", "name", "shipment_date")),
     "screen_settings": (("id",), ("timezone", "safety_start_date", "show_logo", "show_login_logo", "show_sidebar_logo")),
-    "production_line": (("id",), ("name", "standard_qty", "show_in_trend", "theoretical_max_per_hour")),
+    "production_line": (("id",), ("name", "standard_qty", "show_in_trend", "theoretical_max_per_hour", "manual_status")),
     "process_node": (("id",), ("manual_status",)),
     "employee": (("id",), ("username", "name", "password", "enabled")),
 }
@@ -32,7 +31,7 @@ def write_scope(writer, arguments):
         return {"production_daily": ("substr(work_date,1,7)=?", arguments), "production_line": ("1", ())}
     if writer == "save_production":
         return {"production_daily": ("work_date=?", arguments), "daily_overview": ("work_date=?", arguments),
-                "line_downtime": ("1", ()), "production_month_plan": ("1", ())}
+                "production_month_plan": ("1", ())}
     if writer == "save_inventory":
         return {table: ("1", ()) for table in ("raw_material_stock", "semi_finished_stock")}
     if writer == "save_warehouse_import":
@@ -44,7 +43,7 @@ def write_scope(writer, arguments):
         return {table: ("1", ()) for table in ("screen_settings", "production_line", "process_node")}
     if writer == "save_employees":
         return {"employee": ("1", ())}
-    return {"line_downtime": ("1", ())}
+    return {}
 
 
 def capture(db, scope):

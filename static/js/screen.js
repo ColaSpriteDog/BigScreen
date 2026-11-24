@@ -58,10 +58,11 @@
     return row;
   }
 
-  /** 展示四条产线；lines 为后端计算结果；无返回值，状态和运行率始终来自停机记录。 */
+  /** 展示四条产线；lines 为后端结果；无返回值，运行状态来自配置，运行率来自本月累计工时。 */
   function renderLines(lines) {
     const cards = lines.map(line => {
-      const card = node("section", "panel line-card" + (line.status === "running" ? "" : " is-maintenance") + (line.status === "fault" ? " is-fault" : ""));
+      const building = line.status === "construction";
+      const card = node("section", "panel line-card" + (building ? " is-construction" : line.status === "running" ? "" : " is-maintenance") + (line.status === "fault" ? " is-fault" : ""));
       card.dataset.lineId = line.id;
       card.dataset.state = line.status;
       const header = node("div", "line-header");
@@ -81,11 +82,13 @@
         + (line.yesterday_defect_rate == null ? "" : `（${model.formatPercent(line.yesterday_defect_rate)}）`);
       list.append(metric("标准产量" + dailyUnit, model.formatNumber(line.standard_qty)), metric("昨日产量" + unit, model.formatNumber(line.yesterday_qty)),
         metric("本月产量" + unit, model.formatNumber(line.monthly_qty)), metric(line.unit === "米" ? "昨日报废" : "昨日不良", defectText, line.yesterday_defect_qty > 0));
-      const status = metric("运行状态", `${line.status_label} ${model.formatPercent(line.runtime_rate)}`);
-      status.lastElementChild.style.color = line.status === "running" ? "var(--green)" : "var(--orange)";
-      status.title = `计划生产 ${model.formatNumber(line.planned_hours)}（小时）；当天停机 ${model.formatNumber(line.downtime_minutes)}（分钟）；运行率按计划生产时长扣除配置停机时段与当天重叠的时长计算，未填写结束时间的停机累计至当前`;
+      const rate = line.runtime_rate == null ? "" : " " + model.formatPercent(line.runtime_rate);
+      const status = metric("运行状态", line.status_label + rate);
+      status.lastElementChild.classList.add("line-state");
+      status.title = `本月累计计划生产 ${model.formatNumber(line.monthly_planned_hours)}（小时）；异常停机 ${model.formatNumber(line.monthly_abnormal_hours)}（小时）；运行率按本月已录入数据的累计工时计算，缺少异常停机工时或无生产计划时不显示百分比`;
       list.append(status);
       const progress = node("div", "progress-bar");
+      progress.hidden = line.runtime_rate == null;
       const fill = node("div", "progress-inner" + (line.status === "running" ? "" : " warn"));
       fill.style.width = `${line.runtime_rate ?? 0}%`;
       progress.append(fill);
@@ -221,7 +224,7 @@
     warningElement.textContent = warning ? "异常联动：" + warning : "";
     warningElement.title = warning;
     const items = processes.map((process, index) => {
-      const card = node("li", "process-step" + (process.alert ? " is-maintenance" : "") + (process.status === "fault" ? " is-fault" : ""));
+      const card = node("li", "process-step" + (process.status === "construction" ? " is-construction" : process.alert ? " is-maintenance" : "") + (process.status === "fault" ? " is-fault" : ""));
       card.dataset.processId = process.id;
       card.dataset.state = process.status;
       card.title = process.alert_label || process.status_label;
@@ -238,8 +241,9 @@
       card.append(illustration, node("strong", "", process.name), node("span", "step-status", process.status_label));
       if (index !== processes.length - 1) {
         // 连接任意一端停机时静止提示；其余连接继续向右流动。
-        const stopped = process.alert || processes[index + 1].alert;
-        const connector = node("span", "process-connector" + (stopped ? " is-stopped" : ""));
+        const stopped = !["running", "normal"].includes(process.status) || !["running", "normal"].includes(processes[index + 1].status);
+        const connector = node("span", "process-connector" + (stopped ? " is-stopped" : "")
+          + (stopped && !process.alert && !processes[index + 1].alert ? " is-construction" : ""));
         connector.dataset.state = stopped ? "stopped" : "running";
         connector.setAttribute("aria-hidden", "true");
         connector.innerHTML = '<svg viewBox="0 0 24 12" fill="none" stroke="currentColor" stroke-width="1.8"><path class="connector-track" d="M1 6h17"/><path class="connector-stream" d="M1 6h17"/><circle class="connector-spark" cx="2" cy="6" r="1.5"/><path d="m14 1 6 5-6 5" stroke-linejoin="round"/></svg>';

@@ -74,7 +74,7 @@ def test_previous_database_adds_backend_logo_defaults_without_resetting_screen(t
     assert current['show_login_logo'] is False and current['show_sidebar_logo'] is False
     assert current['show_logo'] is True
     with connect_database(path) as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0] == 9
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 10
 
 
 def test_backend_logo_switches_apply_only_after_save_and_preserve_layout(ui_context, browser, live_server, client):

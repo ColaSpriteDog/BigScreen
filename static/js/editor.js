@@ -49,7 +49,9 @@
         versions: { production: 0, inventory: 0, sales: 0, settings: 0 },
         dirty: { production: false, inventory: false, sales: false, settings: false }, keyCounter: 0, partSearch: "",
         baselines: {}, employees: { items: [] }, currentEmployee: null,
-        production: { lines: [], overview: {}, downtimes: [] }, inventory: { raw: [], semi: [] },
+        production: { lines: [], overview: {} }, inventory: { raw: [], semi: [] },
+        lineStatuses: [{ value: "running", label: "运行中" }, { value: "construction", label: "建设中" },
+          { value: "stopped", label: "停机" }, { value: "maintenance", label: "维护" }, { value: "fault", label: "故障" }],
         warehouseImport: null, warehouseDialogVisible: false, warehouseMonth: "",
         productionImport: null, productionDialogVisible: false, productionImportMonth: "", loadedProductionMonth: "",
         productionImportSelection: [], productionOverwrite: false,
@@ -225,7 +227,6 @@
         if (initial || module === "production") {
           this.savedOeeIssues = clone(snapshot.oee_issues || []);
           this.production = clone(snapshot.production);
-          this.production.downtimes = this.keyed(snapshot.production.downtimes);
           this.productionImportMonth = this.loadedProductionMonth = snapshot.production.monthly_plan.month;
           this.selectedDate = this.loadedDate = snapshot.date;
         }
@@ -608,10 +609,10 @@
         this.inventory[kind].splice(index + 1, 0, item);
         this.markDirty("inventory");
       },
-      /** 删除草稿行；kind 为库存或停机类型，index 为行号；无返回值，保存后才更新数据库。 */
+      /** 删除库存草稿行；kind 为库存类型，index 为行号；无返回值，保存后才更新数据库。 */
       removeRow(kind, index) {
-        if (kind === "downtimes") { this.production.downtimes.splice(index, 1); this.markDirty("production"); }
-        else { this.inventory[kind].splice(index, 1); this.markDirty("inventory"); }
+        this.inventory[kind].splice(index, 1);
+        this.markDirty("inventory");
       },
       /** 新增件号草稿；无参数；无返回值，并清空搜索使新行可见。 */
       addShipment() {
@@ -624,36 +625,6 @@
       removeShipment(item) {
         this.sales.items.splice(this.sales.items.indexOf(item), 1);
         this.markDirty("sales");
-      },
-      /** 新增停机时段；无参数；无返回值，按选定日期初始化开始时间。 */
-      addDowntime() {
-        this.production.downtimes.push({ _key: this.newKey(), line_id: this.production.lines[0].id,
-          start_at: this.selectedDate + "T08:00:00", end_at: null, kind: "stopped", note: "" });
-        this.markDirty("production");
-      },
-      /** 定位停机表格；无参数；无返回值。 */
-      scrollToDowntimes() { document.getElementById("downtimeSection").scrollIntoView({ behavior: "smooth", block: "start" }); },
-      /** 开始即时停机；line 为产线、kind 为停机类型；返回原子保存 Promise。 */
-      async startStop(line, kind) { await this.quickStop("/api/downtime/start", { line_id: line.id, kind }); },
-      /** 恢复产线运行；line 含未结束记录ID；返回原子保存 Promise。 */
-      async finishStop(line) { await this.quickStop(`/api/downtime/${line.open_downtime_id}/finish`, {}); },
-      /** 执行即时停机操作；path/body 为接口及参数；返回 Promise，已有草稿时保留草稿并提示。 */
-      async quickStop(path, body) {
-        if (this.isDirty) { ElementPlus.ElMessage.warning("请先保存当前修改，再执行即时停机操作"); return; }
-        if (this.saving || !this.moduleReady) return;
-        this.saving = true;
-        this.errorMessage = "";
-        try {
-          const result = await BoardAPI.request(path, { method: "POST", body: { version: this.versions.production, ...body } });
-          this.savedAt = result.updated_at;
-          BoardAPI.notifySaved();
-          await this.loadModule("production");
-          ElementPlus.ElMessage.success("产线状态已更新");
-        } catch (error) { if (error.status === 401) this.handleSessionExpired(); this.errorMessage = error.message; }
-        finally {
-          this.saving = false;
-          if (this.errorMessage) await this.focusError();
-        }
       },
       /** 防止关闭时丢失草稿；event 为浏览器事件；无返回值。 */
       preventUnload(event) { if (this.isDirty) { event.preventDefault(); event.returnValue = ""; } },

@@ -61,6 +61,10 @@ def test_oee_uses_source_hours_and_ideal_cycle(client):
     ((None, None, None, None), 0),
     ((0, 0, 0, 0), 0),
     ((None, 1.5, None, 0), 1.5),
+    ((None, '6.5H', None, 0), 6.5),
+    ((None, '6.5', None, 0), 6.5),
+    ((None, ' 6.5 h ', None, 0), 6.5),
+    (('2H', '1.5h', None, 0), 3.5),
 ])
 def test_blank_source_stops_count_as_zero(client, stops, expected):
     """验证空白停机口径；client、stops、expected 为客户端、四处停机及预期合计；断言预览和保存后 OEE 有效。"""
@@ -83,7 +87,8 @@ def test_blank_source_stops_count_as_zero(client, stops, expected):
     assert client.get('/api/dashboard').get_json()['overview']['oee_percent'] == 9.9
 
 
-@pytest.mark.parametrize('kind', ['too_long', 'rate_formula', 'negative', 'partial_hours', 'invalid_cell', 'invalid_text'])
+@pytest.mark.parametrize('kind', ['too_long', 'rate_formula', 'negative', 'partial_hours', 'invalid_cell', 'invalid_text',
+                                  'negative_unit', 'unit_only', 'unit_with_note'])
 def test_source_timing_errors_warn_without_inventing_oee(client, kind):
     """验证源错误；client/kind 为客户端和错误类型；断言预览标注且不影响有效产量导入、无错误 OEE。"""
     def change(book):
@@ -94,6 +99,9 @@ def test_source_timing_errors_warn_without_inventing_oee(client, kind):
         elif kind == 'negative': sheet['C28'] = -1
         elif kind == 'invalid_cell': sheet['C28'] = '#DIV/0!'
         elif kind == 'invalid_text': sheet['C28'] = '待核实'
+        elif kind == 'negative_unit': sheet['C28'] = '-1H'
+        elif kind == 'unit_only': sheet['C28'] = 'H'
+        elif kind == 'unit_with_note': sheet['C28'] = '6.5H repair'
         else: sheet['C36'] = None
     configure_capacity(client)
     data = preview(client, production_workbook(change)).get_json()

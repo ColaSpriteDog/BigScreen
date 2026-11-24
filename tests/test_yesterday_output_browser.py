@@ -16,10 +16,13 @@ def test_cards_show_yesterday_output_and_defects_with_live_status(ui_context, li
         line.update(actual_qty=actual, defect_qty=defect)
     assert client.put('/api/production/2026-11-20', json=yesterday).status_code == 200
     today = production_payload(client)
-    today['lines'][0].update(actual_qty=999, defect_qty=9, planned_hours=12)
-    today['downtimes'] = [{'line_id': 1, 'start_at': '2026-11-21T11:00:00',
-                           'end_at': '2026-11-21T13:00:00', 'kind': 'maintenance'}]
+    today['lines'][0].update(actual_qty=999, defect_qty=9, planned_hours=12, abnormal_hours=2)
+
     assert client.put('/api/production/2026-11-21', json=today).status_code == 200
+    from tests.test_api import settings_payload
+    config = settings_payload(client)
+    config['lines'][0]['manual_status'] = 'maintenance'
+    assert client.put('/api/settings', json=config).status_code == 200
     page = ui_context.new_page()
     page.set_viewport_size({'width': width, 'height': height})
     errors = []

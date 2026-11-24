@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS production_line (
     name TEXT NOT NULL,
     standard_qty REAL CHECK (standard_qty IS NULL OR standard_qty >= 0),
     theoretical_max_per_hour REAL CHECK (theoretical_max_per_hour IS NULL OR theoretical_max_per_hour > 0),
+    manual_status TEXT NOT NULL DEFAULT 'running'
+        CHECK (manual_status IN ('running', 'construction', 'stopped', 'maintenance', 'fault')),
     process_id INTEGER NOT NULL REFERENCES process_node(id),
     show_in_trend INTEGER NOT NULL CHECK (show_in_trend IN (0, 1)),
     sort_order INTEGER NOT NULL
@@ -43,18 +45,6 @@ CREATE TABLE IF NOT EXISTS production_daily (
     PRIMARY KEY (line_id, work_date)
 );
 CREATE INDEX IF NOT EXISTS production_by_date ON production_daily(work_date, line_id);
-
-CREATE TABLE IF NOT EXISTS line_downtime (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    line_id INTEGER NOT NULL REFERENCES production_line(id),
-    start_at TEXT NOT NULL,
-    end_at TEXT,
-    kind TEXT NOT NULL CHECK (kind IN ('stopped', 'maintenance', 'fault')),
-    note TEXT NOT NULL DEFAULT '',
-    updated_at TEXT NOT NULL,
-    CHECK (end_at IS NULL OR end_at > start_at)
-);
-CREATE INDEX IF NOT EXISTS downtime_period ON line_downtime(line_id, start_at, end_at);
 
 CREATE TABLE IF NOT EXISTS raw_material_stock (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,4 +130,4 @@ CREATE TABLE IF NOT EXISTS record_attribution (
     PRIMARY KEY (record_type, record_key)
 );
 
-PRAGMA user_version = 9;
+PRAGMA user_version = 10;

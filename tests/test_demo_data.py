@@ -16,6 +16,7 @@ def test_demo_data_populates_screen_and_keeps_previous_database_backup(client, a
               'processes': [node for node in original['processes'] if node['id'] in (1, 5)]}
     config['lines'][0]['name'] = '保留的产线名称'
     config['lines'][0]['show_in_trend'] = 1
+    config['lines'][3]['manual_status'] = 'construction'
     assert client.put('/api/settings', json=config).status_code == 200
     assert client.put('/api/sales/2026-11', json={'version': 1, 'order_qty': 500,
                                                'items': [{'part_no': 'ORIGINAL', 'quantity': 100}]}).status_code == 200
@@ -25,7 +26,7 @@ def test_demo_data_populates_screen_and_keeps_previous_database_backup(client, a
     assert data['lines'][0]['name'] == '保留的产线名称'
     assert [item['line_id'] for item in data['trend']['series']] == [1, 3, 4]
     assert [item['actual_qty'] for item in data['lines']] == [1280, 960, 1420, 1360]
-    assert data['lines'][3]['status'] == 'maintenance'
+    assert data['lines'][3]['status'] == 'construction'
     assert data['trend']['reported_days'] == 21
     assert len(data['inventory']['raw']) == 8
     assert len(data['inventory']['semi']) == 10
@@ -57,7 +58,7 @@ def test_demo_data_is_repeatable_without_duplicate_daily_rows(client, app, clock
     assert first['backup_path'] != second['backup_path']
     assert current['lines'][0]['monthly_qty'] == initial['lines'][0]['monthly_qty']
     assert current['sales']['shipped_qty'] == 37400
-    assert len(client.get('/api/editor').get_json()['production']['downtimes']) == 1
+    assert client.get('/api/editor').get_json()['production']['lines'][3]['abnormal_hours'] == 0.75
 
 
 def test_demo_data_refuses_missing_database(tmp_path, clock):

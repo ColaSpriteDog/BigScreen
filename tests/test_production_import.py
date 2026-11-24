@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from openpyxl import Workbook
 
-from backend.production_import import LAYOUTS, HOUR_ROWS
+from backend.production_import import LAYOUTS, HOUR_ROWS, STOP_ROWS
 from tests.test_api import production_payload, settings_payload
 
 
@@ -28,6 +28,9 @@ def production_workbook(change=None):
         if identifier in (3, 4):
             for row in (28, 33, 41, 45):
                 sheet.cell(row, 2, '异常停机工时')
+        else:
+            for row, label in STOP_ROWS[identifier]:
+                sheet.cell(row, 2, label)
         sheet.cell(actual[0][0], 3, 100.125 if unit == '米' else 100)
         sheet.cell(defects[0][0], 3, 0.25 if unit == '米' else 1)
         # 报废率错误不属于导入字段，不能阻止有效数量的提取。
@@ -95,6 +98,7 @@ def test_real_production_file_preview_and_save(client, app):
     assert result['overview']['average_output'] == 49.37
     assert result['overview']['oee_percent'] is None
     assert any(item['warnings'] for item in data['items'] if item['line_id'] == 3)
+    assert all(item['abnormal_hours'] is None for item in data['items'] if item['line_id'] == 3)
     assert all(line['actual_qty'] is None for line in result['lines'])
     first = client.get('/api/editor?date=2026-11-01').get_json()['production']['lines']
     assert first[0]['actual_qty'] == pytest.approx(19217.6438348)

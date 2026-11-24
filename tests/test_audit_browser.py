@@ -44,7 +44,6 @@ def test_attribution_all_modules_and_responsive_layout(ui_context, live_server, 
     production = production_payload(client)
     production['lines'][0]['actual_qty'] = 100
     production['lines'][0]['abnormal_hours'] = 1
-    production['downtimes'] = [{'line_id': 1, 'start_at': '2026-11-21T10:00:00', 'end_at': '2026-11-21T11:00:00', 'kind': 'stopped'}]
     assert client.put('/api/production/2026-11-21', json=production).status_code == 200
     version = client.get('/api/editor').get_json()['version']
     assert client.put('/api/sales/2026-11', json={'version': version, 'order_qty': 1000, 'items': [{'part_no': 'A01', 'quantity': 100}]}).status_code == 200

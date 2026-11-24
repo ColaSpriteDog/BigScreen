@@ -91,7 +91,7 @@ def test_existing_database_adds_monthly_plan_without_changing_daily_data(client,
     assert upgraded.get('/api/dashboard').get_json() == original
     with connect_database(app.config['DATABASE']) as db:
         assert db.execute('SELECT COUNT(*) FROM production_month_plan').fetchone()[0] == 0
-        assert db.execute('PRAGMA user_version').fetchone()[0] == 9
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 10
 
 
 @pytest.mark.parametrize('value', [-1, 1.5, True, '28000', 1000000000001])

@@ -6,8 +6,9 @@ import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 UTC = timezone.utc
-STATUS_LABELS = {"running": "运行中", "normal": "正常", "stopped": "停机", "maintenance": "维护", "fault": "故障"}
+STATUS_LABELS = {"running": "运行中", "normal": "正常", "stopped": "停机", "maintenance": "维护", "fault": "故障", "construction": "建设中"}
 STOP_KINDS = {"stopped", "maintenance", "fault"}
+LINE_STATUSES = {"running", "construction", *STOP_KINDS}
 
 
 class ValidationError(ValueError):
@@ -127,39 +128,8 @@ def production_oee_issues(line, day):
     return issues
 
 
-def line_runtime(now, zone, downtimes, planned_hours=24, day=None):
-    """计算状态及运行率；now/zone 为时钟时区，downtimes 为停机，planned_hours 为计划小时，day 可指定日期；返回统计字典。"""
-    now = now.astimezone(UTC)
-    local_day = day or now.astimezone(ZoneInfo(zone)).date().isoformat()
-    beginning, ending = day_bounds(local_day, zone)
-    planned_seconds = number(planned_hours, "计划生产时长", maximum=24) * 3600
-    spans = []
-    active = []
-    for item in downtimes:
-        start = parse_datetime(item["start_at"])
-        finish = parse_datetime(item["end_at"]) if item.get("end_at") else now
-        if start <= now and (not item.get("end_at") or now < finish):
-            active.append(item)
-        # 已配置结束时间的停机按完整区间截取业务日；未结束的即时停机仍累计至当前。
-        left, right = max(start, beginning), min(finish, ending)
-        if right > left:
-            spans.append((left, right))
-    spans.sort()
-    merged = []
-    for start, finish in spans:
-        if merged and start <= merged[-1][1]:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], finish))
-        else:
-            merged.append((start, finish))
-    stopped = sum((finish - start).total_seconds() for start, finish in merged)
-    priority = {"stopped": 1, "maintenance": 2, "fault": 3}
-    active.sort(key=lambda item: priority.get(item.get("kind"), 1), reverse=True)
-    state = active[0].get("kind", "stopped") if active else "running"
-    return {
-        "status": state,
-        "status_label": STATUS_LABELS[state],
-        "runtime_rate": round(max(planned_seconds - stopped, 0) / planned_seconds * 100, 2) if planned_seconds else None,
-        "downtime_minutes": round(stopped / 60, 2),
-        "active_downtime_id": active[0].get("id") if active else None,
-        "open_downtime_id": next((item.get("id") for item in active if not item.get("end_at")), None),
-    }
+def line_availability(planned_hours, abnormal_hours):
+    """计算日报时间开动率；参数为计划与异常停机小时；返回百分比，缺少停机记录或无计划时返回空值。"""
+    planned = number(planned_hours, "计划生产时长", maximum=24)
+    abnormal = number(abnormal_hours, "异常停机工时", optional=True, maximum=planned)
+    return ratio(planned - abnormal, planned) if abnormal is not None else None

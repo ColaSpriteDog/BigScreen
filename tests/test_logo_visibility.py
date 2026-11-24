@@ -61,7 +61,7 @@ def test_legacy_database_adds_logo_setting_without_resetting_values(tmp_path, cl
     assert data['show_logo'] is False
     assert (data['version'], data['timezone'], data['safety_days']) == (12, 'UTC', 20)
     with connect_database(path) as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0] == 9
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 10
         db.execute('UPDATE screen_settings SET show_logo=1 WHERE id=1')
     restarted = create_app(config).test_client()
     assert restarted.get('/api/dashboard').get_json()['show_logo'] is True

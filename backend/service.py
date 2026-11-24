@@ -8,8 +8,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import audit
 
-from .domain import (STATUS_LABELS, STOP_KINDS, ValidationError, day_bounds, line_runtime,
-                     number, parse_date, parse_datetime, parse_month, production_oee_issues, ratio, text)
+from .domain import (LINE_STATUSES, STATUS_LABELS, STOP_KINDS, ValidationError, line_availability,
+                     number, parse_date, parse_month, production_oee_issues, ratio, text)
 
 
 class ConflictError(ValueError):
@@ -80,13 +80,6 @@ def consistent_read(db):
         raise
 
 
-def downtime_rows(db, day, zone):
-    """读取与业务日相交的停机；day、zone 为日期和时区；返回含跨天、未结束记录的列表。"""
-    start, finish = day_bounds(day, zone)
-    return rows(db, "SELECT * FROM line_downtime WHERE start_at<? AND (end_at IS NULL OR end_at>?) ORDER BY start_at,id",
-                (finish.isoformat(), start.isoformat()))
-
-
 def editor_snapshot(db, now, day=None, month=None, include_audit=True, production_month=None):
     """读取编辑表单；now 为当前时间，day/month/production_month 为日报、销售和月计划周期；返回含可选人员信息的表单。"""
     config = settings(db)
@@ -100,8 +93,6 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True, productio
     plan = rows(db, "SELECT * FROM production_month_plan WHERE month=?", (production_month,))
     output = {row["line_id"]: row for row in rows(db, "SELECT * FROM production_daily WHERE work_date=?", (day,))}
     lines = rows(db, "SELECT * FROM production_line ORDER BY sort_order")
-    current_stops = downtime_rows(db, today, zone)
-    selected_stops = current_stops if day == today else downtime_rows(db, day, zone)
     for line in lines:
         line["unit"] = production_unit(line["id"])
         line.update(actual_qty=output.get(line["id"], {}).get("actual_qty"),
@@ -109,22 +100,15 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True, productio
                     planned_hours=output.get(line["id"], {}).get("planned_hours", 24),
                     abnormal_hours=output.get(line["id"], {}).get("abnormal_hours"),
                     ideal_cycle_hours=1 / line["theoretical_max_per_hour"] if line["theoretical_max_per_hour"] else None)
-        runtime = line_runtime(now, zone, [item for item in current_stops if item["line_id"] == line["id"]], line["planned_hours"])
-        if day != today:
-            selected_runtime = line_runtime(now, zone, [item for item in selected_stops if item["line_id"] == line["id"]], line["planned_hours"], day)
-            runtime.update(runtime_rate=selected_runtime["runtime_rate"], downtime_minutes=selected_runtime["downtime_minutes"])
-        line.update(runtime)
-    stops = selected_stops
-    for item in stops:
-        item["start_at"] = parse_datetime(item["start_at"]).astimezone(ZoneInfo(zone)).strftime("%Y-%m-%dT%H:%M:%S")
-        if item["end_at"]:
-            item["end_at"] = parse_datetime(item["end_at"]).astimezone(ZoneInfo(zone)).strftime("%Y-%m-%dT%H:%M:%S")
+        # 状态始终读取当前配置，时间开动率只读取所选日期的日报工时。
+        line.update(status=line["manual_status"], status_label=STATUS_LABELS[line["manual_status"]],
+                    runtime_rate=line_availability(line["planned_hours"], line["abnormal_hours"]))
     overview = rows(db, "SELECT * FROM daily_overview WHERE work_date=?", (day,))
     sale = rows(db, "SELECT * FROM sales_month WHERE month=?", (month,))
     result = {
         "version": config["version"], "updated_at": config["updated_at"], "server_time": now.isoformat(),
         "business_date": today, "date": day, "month": month, "settings": config,
-        "production": {"lines": lines, "downtimes": stops,
+        "production": {"lines": lines,
             "monthly_plan": plan[0] if plan else {"month": production_month, "planned_qty": None},
             "overview": overview[0] if overview else {
             "planned_qty": None, "actual_qty": None, "oee_percent": None, "quality_percent": None, "average_output": None}},
@@ -162,8 +146,6 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True, productio
             audit.attach([source], "production_daily", lookup, line["id"] in output)
             line["_audit"] = source["_audit"]
         audit.attach([result["production"]["overview"]], "daily_overview", lookup, bool(overview))
-        # 未保存的默认全局指标没有主键，保存过的记录使用数据库中的业务日期。
-        audit.attach(stops, "line_downtime", lookup)
         audit.attach(result["inventory"]["raw"], "raw_material_stock", lookup)
         audit.attach(result["inventory"]["semi"], "semi_finished_stock", lookup)
         sale_info = sale[0] if sale else {"month": month, "order_qty": None}
@@ -231,15 +213,29 @@ def dashboard_snapshot(db, now):
     snapshot = editor_snapshot(db, now, include_audit=False)
     day, zone = snapshot["date"], snapshot["settings"]["timezone"]
     lines = snapshot["production"]["lines"]
-    # 日报次日更新：卡片日指标读取业务时区昨日，当前运行状态仍使用今天的时长和停机记录。
+    # 日报次日更新：卡片日指标读取业务时区昨日，展示状态读取独立产线配置。
     production_date = (parse_date(day) - timedelta(days=1)).isoformat()
     yesterday = {row["line_id"]: row for row in rows(db,
         "SELECT line_id,actual_qty,defect_qty FROM production_daily WHERE work_date=?", (production_date,))}
     monthly = {row["line_id"]: row["quantity"] for row in rows(db,
         "SELECT line_id,SUM(actual_qty) AS quantity FROM production_daily WHERE work_date>=? AND work_date<=? GROUP BY line_id",
         (day[:7] + "-01", day))}
+    # 本月所有已录入数据均参与工时累计；整批保存产生的默认空行不能增加计划工时。
+    monthly_hours = {row["line_id"]: row for row in rows(db,
+        "SELECT line_id,SUM(planned_hours) AS planned_hours,"
+        "CASE WHEN SUM(CASE WHEN planned_hours>0 AND abnormal_hours IS NULL THEN 1 ELSE 0 END)=0 "
+        "THEN SUM(CASE WHEN planned_hours=0 THEN 0 ELSE abnormal_hours END) END AS abnormal_hours "
+        "FROM production_daily WHERE substr(work_date,1,7)=? "
+        "AND (actual_qty IS NOT NULL OR defect_qty IS NOT NULL OR abnormal_hours IS NOT NULL OR planned_hours<>24) "
+        "GROUP BY line_id", (day[:7],))}
     for line in lines:
         line["monthly_qty"] = monthly.get(line["id"])
+        hours = monthly_hours.get(line["id"], {})
+        planned, abnormal = hours.get("planned_hours"), hours.get("abnormal_hours")
+        line["monthly_planned_hours"] = planned
+        line["monthly_abnormal_hours"] = abnormal
+        # 月累计可能超过二十四小时，直接按累计工时计算，不平均各日百分比；缺项不推断为零。
+        line["runtime_rate"] = ratio(planned - abnormal, planned) if abnormal is not None else None
         line["defect_rate"] = ratio(line["defect_qty"], line["actual_qty"])
         previous = yesterday.get(line["id"], {})
         line["yesterday_qty"] = previous.get("actual_qty")
@@ -297,7 +293,7 @@ def dashboard_snapshot(db, now):
         linked = [line for line in lines if line["process_id"] == process["id"]]
         abnormal = [line for line in linked if line["status"] != "running"]
         if abnormal:
-            worst = max(abnormal, key=lambda line: {"stopped": 1, "maintenance": 2, "fault": 3}[line["status"]])
+            worst = max(abnormal, key=lambda line: {"construction": 0, "stopped": 1, "maintenance": 2, "fault": 3}[line["status"]])
             process["status"] = worst["status"]
             # 默认名称可简写为 A/B 线；改名后用状态标签配合完整告警名称，避免沿用旧称呼。
             default_alias = {3: ("激光拼焊线A", "A线"), 4: ("激光拼焊线B", "B线")}.get(worst["id"])
@@ -308,7 +304,7 @@ def dashboard_snapshot(db, now):
             process["status"] = "running" if linked else process["manual_status"]
             process["status_label"] = STATUS_LABELS[process["status"]]
             process["alert_label"] = process["status_label"]
-        process["alert"] = process["status"] not in {"running", "normal"}
+        process["alert"] = process["status"] in STOP_KINDS
     safe_start = snapshot["settings"]["safety_start_date"]
     return {"version": snapshot["version"], "updated_at": snapshot["updated_at"], "server_time": now.isoformat(),
             "show_logo": snapshot["settings"]["show_logo"],
@@ -329,7 +325,7 @@ def validate_line_ids(db, items):
 
 
 def save_production(db, payload, day, now):
-    """保存日报、月计划与停机草稿；day 为业务日期、now 为保存时间；无返回值，外层事务统一提交。"""
+    """保存日报与月计划；day 为业务日期、now 为保存时间；无返回值，外层事务统一提交。"""
     parse_date(day)
     if parse_date(day) > now.astimezone(ZoneInfo(settings(db)["timezone"])).date():
         raise ValidationError("生产日报不能录入未来日期")
@@ -341,7 +337,7 @@ def save_production(db, payload, day, now):
         db.execute("INSERT INTO production_month_plan(month,planned_qty) VALUES(?,?) "
                    "ON CONFLICT(month) DO UPDATE SET planned_qty=excluded.planned_qty", (plan_month, planned_qty))
     lines = array_value(payload.get("lines"), "产线日报", 20)
-    known = validate_line_ids(db, lines)
+    validate_line_ids(db, lines)
     existing_hours = {row["line_id"]: row["planned_hours"] for row in db.execute(
         "SELECT line_id,planned_hours FROM production_daily WHERE work_date=?", (day,))}
     previous = {row["line_id"]: row for row in db.execute("SELECT * FROM production_daily WHERE work_date=?", (day,))}
@@ -361,37 +357,6 @@ def save_production(db, payload, day, now):
                    "ON CONFLICT(line_id,work_date) DO UPDATE SET actual_qty=excluded.actual_qty,defect_qty=excluded.defect_qty,"
                    "planned_hours=excluded.planned_hours,abnormal_hours=excluded.abnormal_hours",
                    (item["id"], day, actual, defects, planned_hours, abnormal, cycle))
-    zone = settings(db)["timezone"]
-    existing = {item["id"] for item in downtime_rows(db, day, zone)}
-    seen = set()
-    start_day, end_day = day_bounds(day, zone)
-    for item in array_value(payload.get("downtimes"), "停机记录"):
-        identifier = item.get("id")
-        if identifier is not None:
-            identifier = number(identifier, "停机记录ID", integer=True)
-            if identifier not in existing or identifier in seen:
-                raise ValidationError("停机记录不存在或重复，请重新加载")
-            seen.add(identifier)
-        line_id = number(item.get("line_id"), "停机产线", integer=True)
-        if line_id not in known:
-            raise ValidationError("停机记录产线不存在")
-        start = parse_datetime(item.get("start_at"), zone)
-        finish = parse_datetime(item["end_at"], zone) if item.get("end_at") else None
-        if finish is not None and finish <= start:
-            raise ValidationError("停机结束时间必须晚于开始时间")
-        if identifier is None and (start >= end_day or (finish is not None and finish <= start_day)):
-            raise ValidationError("新增停机记录必须与选定日期相交")
-        kind = item.get("kind", "stopped")
-        if not isinstance(kind, str) or kind not in STOP_KINDS:
-            raise ValidationError("停机类型不正确")
-        note = text(item.get("note", ""), "停机备注", maximum=200, optional=True)
-        params = (line_id, start.isoformat(), finish.isoformat() if finish else None, kind, note, now.isoformat())
-        if identifier is None:
-            db.execute("INSERT INTO line_downtime(line_id,start_at,end_at,kind,note,updated_at) VALUES(?,?,?,?,?,?)", params)
-        else:
-            db.execute("UPDATE line_downtime SET line_id=?,start_at=?,end_at=?,kind=?,note=?,updated_at=? WHERE id=?", (*params, identifier))
-    for identifier in existing - seen:
-        db.execute("DELETE FROM line_downtime WHERE id=?", (identifier,))
 
 
 def replace_stock(db, table, fields, items):
@@ -596,8 +561,11 @@ def save_settings(db, payload, now):
         capacity = number(line.get("theoretical_max_per_hour", capacities[line["id"]]), "设备理论最大产量", optional=True)
         if capacity == 0:
             raise ValidationError("设备理论最大产量必须大于零，未配置请留空")
-        db.execute("UPDATE production_line SET name=?,standard_qty=?,show_in_trend=?,theoretical_max_per_hour=? WHERE id=?",
-                   (name, standard, visibility[line["id"]], capacity, line["id"]))
+        state = line.get("manual_status")
+        if not isinstance(state, str) or state not in LINE_STATUSES:
+            raise ValidationError("产线状态不正确")
+        db.execute("UPDATE production_line SET name=?,standard_qty=?,show_in_trend=?,theoretical_max_per_hour=?,manual_status=? WHERE id=?",
+                   (name, standard, visibility[line["id"]], capacity, state, line["id"]))
     nodes = array_value(payload.get("processes"), "独立工序配置", 5)
     for node in nodes:
         node["id"] = number(node.get("id"), "工序ID", integer=True)
@@ -612,31 +580,3 @@ def save_settings(db, payload, now):
                "show_sidebar_logo=? WHERE id=1",
                (zone, safety_date, logo_visibility["show_logo"], logo_visibility["show_login_logo"],
                 logo_visibility["show_sidebar_logo"]))
-
-
-def start_downtime(db, payload, now):
-    """立即开始停机；payload 含 line_id/kind；返回新记录ID，已处于停机区间时拒绝重复开始。"""
-    identifier = number(payload.get("line_id"), "产线ID", integer=True)
-    if not db.execute("SELECT 1 FROM production_line WHERE id=?", (identifier,)).fetchone():
-        raise ValidationError("产线不存在")
-    zone = settings(db)["timezone"]
-    day = now.astimezone(ZoneInfo(zone)).date().isoformat()
-    stops = [row for row in downtime_rows(db, day, zone) if row["line_id"] == identifier]
-    if line_runtime(now, zone, stops)["status"] != "running":
-        raise ConflictError("该产线已处于停机时段，请直接修改原记录")
-    kind = payload.get("kind", "stopped")
-    if not isinstance(kind, str) or kind not in STOP_KINDS:
-        raise ValidationError("停机类型不正确")
-    cursor = db.execute("INSERT INTO line_downtime(line_id,start_at,kind,updated_at) VALUES(?,?,?,?)",
-                        (identifier, now.isoformat(), kind, now.isoformat()))
-    return cursor.lastrowid
-
-
-def finish_downtime(db, identifier, now):
-    """结束正在进行的停机；identifier 为记录ID、now 为恢复时间；无返回值。"""
-    item = db.execute("SELECT * FROM line_downtime WHERE id=?", (identifier,)).fetchone()
-    if item is None or item["end_at"] is not None:
-        raise ConflictError("停机记录已结束或不存在，请重新加载")
-    if parse_datetime(item["start_at"]) >= now:
-        raise ValidationError("恢复时间必须晚于停机开始时间")
-    db.execute("UPDATE line_downtime SET end_at=?,updated_at=? WHERE id=?", (now.isoformat(), now.isoformat(), identifier))

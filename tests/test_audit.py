@@ -143,18 +143,22 @@ def test_settings_configuration_and_process_attribution(client, app, clock):
     assert client.get('/api/editor').get_json()['production']['lines'][0]['_configuration_audit'] == before
 
 
-def test_instant_downtime_start_finish_keeps_creator(client, app, clock):
-    """验证快捷停机归属；参数为客户端、应用和时钟；断言开始记录录入人，恢复仅更新修改人。"""
+def test_manual_line_status_tracks_configuration_actor(client, app, clock):
+    """验证手动状态归属；参数为客户端、应用和时钟；断言状态修改只更新产线配置的操作人员。"""
     worker = worker_client(client, app)
-    version = client.get('/api/editor').get_json()['version']
-    response = worker.post('/api/downtime/start', json={'version': version, 'line_id': 1, 'kind': 'stopped'})
-    assert response.status_code == 200
-    identifier = response.get_json()['result']
+    payload = settings_payload(worker)
+    payload['lines'][3]['manual_status'] = 'construction'
+    assert worker.put('/api/settings', json=payload).status_code == 200
+    line = client.get('/api/editor').get_json()['production']['lines'][3]
+    assert line['_configuration_audit']['modified_by_name'] == '张三'
+    assert line['_audit']['state'] == 'unsaved'
     clock['now'] += timedelta(minutes=1)
-    assert client.post(f'/api/downtime/{identifier}/finish', json={'version': response.get_json()['version']}).status_code == 200
-    meta = client.get('/api/editor').get_json()['production']['downtimes'][0]['_audit']
-    assert meta['created_by_name'] == '张三' and meta['modified_by_name'] == '管理员'
-    assert meta['created_at'] != meta['modified_at']
+    payload = settings_payload(client)
+    payload['lines'][3]['manual_status'] = 'running'
+    assert client.put('/api/settings', json=payload).status_code == 200
+    current = client.get('/api/editor').get_json()['production']['lines'][3]
+    assert current['_configuration_audit']['modified_by_name'] == '管理员'
+    assert current['_configuration_audit']['modified_at'] != line['_configuration_audit']['modified_at']
 
 
 def test_invalid_batch_and_version_conflict_do_not_change_attribution(client, app, clock):

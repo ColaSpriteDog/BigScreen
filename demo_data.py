@@ -9,7 +9,6 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from backend.db import connect_database
-from backend.domain import day_bounds
 from backend.service import (rows, save_inventory, save_production, save_sales, settings,
                              versioned_write)
 
@@ -74,14 +73,9 @@ def apply_demo_data(database_path, now=None):
                 for index, line in enumerate(lines):
                     actual = quantities_today[index] if offset == 0 else quantities_today[index] + generator.randrange(-170, 161, 10)
                     defects = [18, 22, 15, 38][index] if offset == 0 else max(1, round(actual * generator.uniform(0.008, 0.027)))
-                    production.append({'id': line['id'], 'actual_qty': actual, 'defect_qty': defects})
-                stops = []
-                if offset == 0:
-                    start_day, _ = day_bounds(day, zone)
-                    stops.append({'line_id': 4, 'start_at': max(start_day, now - timedelta(minutes=45)).isoformat(),
-                                  'end_at': (now + timedelta(hours=2)).isoformat(), 'kind': 'maintenance',
-                                  'note': '演示数据：激光焊接设备维护'})
-                save_production(connection, {'lines': production, 'downtimes': stops,
+                    production.append({'id': line['id'], 'actual_qty': actual, 'defect_qty': defects,
+                                       'abnormal_hours': 0.75 if line['id'] == 4 and offset == 0 else 0})
+                save_production(connection, {'lines': production,
                     'overview': {'planned_qty': 8600, 'actual_qty': 6010 if offset == 0 else 5600 + generator.randrange(0, 1000),
                                  'oee_percent': 95, 'quality_percent': 98.6, 'average_output': 45}}, day, now)
             save_inventory(connection, stock_examples())
