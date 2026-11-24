@@ -1,0 +1,24 @@
+<!-- 安装程序将外置配置写入程序目录；业务数据与日志使用客户选择的目录。 -->
+<service>
+  <id>BigScreen</id>
+  <name>固联轻量化 生产监控</name>
+  <description>提供生产监控大屏与数据编辑页面。</description>
+  <executable>%BASE%\BigScreen.exe</executable>
+  <arguments>--config "%BASE%\BigScreen.ini"</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart />
+  <stoptimeout>15 sec</stoptimeout>
+  <stopparentprocessfirst>true</stopparentprocessfirst>
+  <onfailure action="restart" delay="10 sec" />
+  <serviceaccount>
+    <domain>NT AUTHORITY</domain>
+    <user>LocalService</user>
+  </serviceaccount>
+  <env name="PYTHONUTF8" value="1" />
+  <logpath>@LOG_DIRECTORY@</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+</service>
