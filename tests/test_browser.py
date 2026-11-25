@@ -80,17 +80,33 @@ def test_grouped_trend_keeps_each_line_and_standard(ui_context, live_server, cli
       const params = option.series.map(series => ({ axisValue: option.xAxis[0].data[dataIndex], seriesId: series.id, seriesName: series.name, value: series.data[dataIndex] }));
       // 检查真实渲染层级，避免仅配置正确但标准线仍覆盖柱体。
       const standards = chart.getZr().storage.getDisplayList().filter(el => el.type === 'ec-line' && el.style.lineDash === 'dashed');
-      return { series: option.series, layouts, tooltip: option.tooltip[0].formatter(params), standardLayers: standards.map(el => el.z) };
+      // 核对真实文本边界，确保标准数字落在绘图区右侧且没有被画布裁切。
+      const standardLabels = chart.getZr().storage.getDisplayList()
+        .filter(el => el.type === 'tspan' && ['1,000', '1,500'].includes(el.style.text)
+          && ['#39e75f', '#B58CFF'].includes(el.style.fill))
+        .map(el => {
+          const rect = el.getBoundingRect().clone();
+          rect.applyTransform(el.getComputedTransform());
+          return { text: el.style.text, color: el.style.fill, rect };
+        });
+      const plot = chart.getModel().getComponent('grid').coordinateSystem.getRect();
+      return { series: option.series, layouts, tooltip: option.tooltip[0].formatter(params), standardLayers: standards.map(el => el.z),
+        standardLabels, plotRight: plot.x + plot.width, chartWidth: chart.getWidth() };
     }""")
     assert [series['type'] for series in chart['series']] == ['bar', 'bar', 'line', 'line']
     assert all(not series.get('stack') for series in chart['series'])
     for bar, line in zip(chart['series'][:2], chart['series'][2:]):
         assert bar['data'] == line['data']
-        assert bar['itemStyle']['color'] == line['lineStyle']['color'] == line['markLine']['lineStyle']['color']
+        assert bar['itemStyle']['color'] == line['lineStyle']['color']
+    assert [series['markLine']['lineStyle']['color'] for series in chart['series'][2:]] == ['#39e75f', '#B58CFF']
     assert [series['markLine']['data'][0]['yAxis'] for series in chart['series'][2:]] == [1000, 1500]
     assert chart['series'][0]['label']['position'] == 'top'
     assert chart['series'][1]['label']['position'] == 'inside'
-    assert all(series['markLine']['label']['show'] is False for series in chart['series'][2:])
+    assert all(series['markLine']['label']['show'] is True for series in chart['series'][2:])
+    assert {label['text']: label['color'] for label in chart['standardLabels']} == {'1,000': '#39e75f', '1,500': '#B58CFF'}
+    for label in chart['standardLabels']:
+        assert label['rect']['x'] >= chart['plotRight']
+        assert label['rect']['x'] + label['rect']['width'] <= chart['chartWidth']
     assert chart['standardLayers'] == [5, 5]
     assert all(layer < series['z'] for layer in chart['standardLayers'] for series in chart['series'][:2])
     first, second = chart['layouts']

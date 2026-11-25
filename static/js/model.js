@@ -107,16 +107,18 @@ const BoardModel = (() => {
       })),
       ...entries.map((item, index) => {
         const standard = standards.find(entry => entry.lines[0].line_id === item.line_id);
+        // B 线标准使用浅紫色，固定按产线 ID 区分，改名或调整顺序后仍保持一致。
+        const standardColor = item.line_id === 4 ? "#B58CFF" : "#39e75f";
         return {
           id: `line-${item.line_id}`, name: item.name, type: "line", data: item.data,
           yAxisIndex: item.yAxisIndex, connectNulls: false, symbol: ["circle", "diamond", "rect", "triangle"][index % 4], symbolSize: compact ? 3 : 4,
           lineStyle: { width: 2, color: item.color }, itemStyle: { color: item.color }, z: 8,
           markLine: standard ? {
             // 标准线置于柱体和数值下方，避免默认高层级虚线横穿实际产量。
-            // 标准虚线统一使用不透明亮绿色，增强深色背景下的辨识度。
-            z: 5, silent: true, symbol: "none", lineStyle: { type: "dashed", width: 1.5, opacity: 1, color: "#39e75f" },
-            // 标准值由顶部图例与悬浮提示展示，避免文字底色遮挡柱体和实际折线。
-            label: { show: false },
+            z: 5, silent: true, symbol: "none", lineStyle: { type: "dashed", width: 1.5, opacity: 1, color: standardColor },
+            // 标准数值显示在线条右端外侧，与虚线同色，不覆盖绘图区中的实际产量。
+            label: { show: true, position: "end", distance: 6, color: standardColor, fontSize: compact ? 10 : 12,
+              fontWeight: 600, formatter: params => formatNumber(params.value) },
             data: [{ name: "标准产量", yAxis: standard.value }],
           } : undefined,
         };
@@ -142,7 +144,9 @@ const BoardModel = (() => {
         return `${params[0]?.axisValue || ""}\n${values.join("\n")}`;
       },
         backgroundColor: "#122936", borderColor: "#1b3545", textStyle: { color: "#f2f7fb" } },
-      grid: { top: 26, left: 4, right: multiple ? 4 : 9, bottom: 5, containLabel: true },
+      // 按标准数值长度预留右侧空间，紧凑模式及多纵轴下也完整显示末端数字。
+      grid: { top: 26, left: 4, right: Math.max(multiple ? 4 : 9,
+        ...standards.map(item => formatNumber(item.value).length * (compact ? 6 : 7) + 14)), bottom: 5, containLabel: true },
       xAxis: { type: "category", data: trend.dates, axisTick: { show: false },
         axisLine: { lineStyle: { color: "#1b3545" } },
         axisLabel: { color: "#a9c0d1", fontSize: compact ? 10 : 12, formatter: value => value.slice(8) } },

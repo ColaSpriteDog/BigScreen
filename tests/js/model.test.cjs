@@ -103,7 +103,7 @@ test('各产线单独绘制标准虚线，柱与折线的提示不重复', () =>
   ] }, false, [{ id: 3, standard_qty: 1000 }, { id: 4, standard_qty: 1500 }]);
   assert.deepEqual(option.series.filter(series => series.markLine).map(series => series.markLine.data[0].yAxis), [1000, 1500]);
   assert.equal(option.series[2].markLine.lineStyle.color, '#39e75f');
-  assert.equal(option.series[3].markLine.lineStyle.color, '#39e75f');
+  assert.equal(option.series[3].markLine.lineStyle.color, '#B58CFF');
   assert.equal(option.series[0].label.position, 'top');
   assert.equal(option.series[1].label.position, 'inside');
   // 标准参考线保留颜色，但必须位于所有实际柱体下方。
@@ -111,6 +111,11 @@ test('各产线单独绘制标准虚线，柱与折线的提示不重复', () =>
     assert.ok(option.series.filter(series => series.type === 'bar').every(bar => marked.markLine.z < bar.z));
     assert.equal(marked.markLine.lineStyle.width, 1.5);
     assert.equal(marked.markLine.lineStyle.opacity, 1);
+    // 标准数字位于右端外侧，并沿用各自标准线的颜色和千分位格式。
+    assert.equal(marked.markLine.label.show, true);
+    assert.equal(marked.markLine.label.position, 'end');
+    assert.equal(marked.markLine.label.color, marked.markLine.lineStyle.color);
+    assert.equal(marked.markLine.label.formatter({ value: marked.markLine.data[0].yAxis }), model.formatNumber(marked.markLine.data[0].yAxis));
   }
   assert.equal(option.yAxis[0].max({ max: 100 }), 1650);
   const tooltip = option.tooltip.formatter(option.series.map(series => ({ axisValue: '2026-11-21', seriesId: series.id, seriesName: series.name, value: series.data[0] })));
@@ -173,7 +178,7 @@ test('同单位同标准共用标线且不在绘图区覆盖标签，不同单�
   const marked = option.series.filter(series => series.markLine);
   assert.equal(marked.length, 2);
   assert.deepEqual(marked.map(series => series.yAxisIndex), [0, 1]);
-  assert.ok(marked.every(series => series.markLine.label.show === false));
+  assert.ok(marked.every(series => series.markLine.label.show && series.markLine.label.position === 'end'));
   assert.ok(option.series[5].markLine === undefined);
 });
 
