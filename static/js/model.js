@@ -23,9 +23,9 @@ const BoardModel = (() => {
     return value == null || value === "" ? null : Number((Number(value) * 1000).toFixed(2));
   }
 
-  /** 格式化百分比；value 为百分数数值；返回带百分号的文本或缺失符号。 */
+  /** 格式化百分比；value 为百分数数值；返回最多两位小数的百分比文本或缺失符号。 */
   function formatPercent(value) {
-    return value === null || value === undefined ? "—" : `${formatNumber(value, 1)}%`;
+    return value === null || value === undefined ? "—" : `${formatNumber(value, 2)}%`;
   }
 
   /** 按单位展示库存；totals 为后端分组汇总；返回各单位独立的摘要文本。 */

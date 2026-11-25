@@ -362,7 +362,7 @@ def test_abnormal_daily_hours_drive_availability(ui_context, live_server):
     expect(editor.get_by_test_id('save-button')).to_be_enabled()
     fill_control(editor, 'abnormal-hours-1', 1)
     editor.get_by_test_id('save-button').click()
-    expect(screen.locator('.line-card[data-line-id="1"]')).to_contain_text('95.8%')
+    expect(screen.locator('.line-card[data-line-id="1"]')).to_contain_text('95.83%')
     expect(screen.locator('.line-card[data-line-id="1"]')).to_have_attribute('data-state', 'running')
 
 
@@ -673,11 +673,11 @@ def test_editor_sales_share_uses_all_rows_when_searching(ui_context, live_server
     expect(share).to_have_attribute('aria-valuetext', '75%')
     fill_control(page, 'shipment-quantity-0', 150)
     page.get_by_role('heading', level=1).click()
-    expect(share).to_have_attribute('aria-valuetext', '85.7%')
+    expect(share).to_have_attribute('aria-valuetext', '85.71%')
     expect(page.get_by_test_id('save-status')).to_have_text('1 处修改未保存')
     page.get_by_test_id('save-button').click()
     expect(page.get_by_test_id('save-status')).to_have_text('所有修改已保存')
-    expect(share).to_have_attribute('aria-valuetext', '85.7%')
+    expect(share).to_have_attribute('aria-valuetext', '85.71%')
     assert client.get('/api/dashboard').get_json()['sales']['shipped_qty'] == 175
 
 

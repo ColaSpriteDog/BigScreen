@@ -50,7 +50,7 @@ def test_planned_hours_edit_save_and_screen_rate(ui_context, live_server, client
     expect(editor.get_by_test_id('save-status')).to_have_text('1 处修改未保存')
     editor.get_by_test_id('save-button').click()
     expect(editor.get_by_test_id('save-status')).to_have_text('所有修改已保存')
-    expect(screen.locator('.line-card[data-line-id="1"]')).to_contain_text('91.7%')
+    expect(screen.locator('.line-card[data-line-id="1"]')).to_contain_text('91.67%')
     assert '12' in screen.locator('.line-card[data-line-id="1"] .data-list > div').last.get_attribute('title')
     fill_control(editor, 'planned-hours-2', 0)
     fill_control(editor, 'planned-hours-3', 7.5)
