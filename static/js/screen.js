@@ -275,7 +275,7 @@
     trendChart.setOption(trendOption, { notMerge: true });
     trendChart.resize();
     const groups = model.trendGroups(data.trend);
-    // 每条产线共用一个图例入口，颜色同时对应并排柱、实际折线和标准虚线。
+    // 每条产线共用一个图例入口，颜色对应并排柱和实际折线，标准虚线统一使用亮绿色。
     const labels = data.trend.series.map(series => {
       const standard = data.lines.find(line => line.id === series.line_id)?.standard_qty;
       const suffix = Number.isFinite(standard) && standard >= 0

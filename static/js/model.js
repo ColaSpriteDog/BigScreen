@@ -113,7 +113,8 @@ const BoardModel = (() => {
           lineStyle: { width: 2, color: item.color }, itemStyle: { color: item.color }, z: 8,
           markLine: standard ? {
             // 标准线置于柱体和数值下方，避免默认高层级虚线横穿实际产量。
-            z: 5, silent: true, symbol: "none", lineStyle: { type: "dashed", width: 1, opacity: 0.55, color: item.color },
+            // 标准虚线统一使用不透明亮绿色，增强深色背景下的辨识度。
+            z: 5, silent: true, symbol: "none", lineStyle: { type: "dashed", width: 1.5, opacity: 1, color: "#39e75f" },
             // 标准值由顶部图例与悬浮提示展示，避免文字底色遮挡柱体和实际折线。
             label: { show: false },
             data: [{ name: "标准产量", yAxis: standard.value }],

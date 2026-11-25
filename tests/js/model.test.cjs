@@ -102,15 +102,15 @@ test('各产线单独绘制标准虚线，柱与折线的提示不重复', () =>
     { line_id: 3, name: 'A线', data: [100] }, { line_id: 4, name: 'B线', data: [0] },
   ] }, false, [{ id: 3, standard_qty: 1000 }, { id: 4, standard_qty: 1500 }]);
   assert.deepEqual(option.series.filter(series => series.markLine).map(series => series.markLine.data[0].yAxis), [1000, 1500]);
-  assert.equal(option.series[2].markLine.lineStyle.color, option.series[0].itemStyle.color);
-  assert.equal(option.series[3].markLine.lineStyle.color, option.series[1].itemStyle.color);
+  assert.equal(option.series[2].markLine.lineStyle.color, '#39e75f');
+  assert.equal(option.series[3].markLine.lineStyle.color, '#39e75f');
   assert.equal(option.series[0].label.position, 'top');
   assert.equal(option.series[1].label.position, 'inside');
   // 标准参考线保留颜色，但必须位于所有实际柱体下方。
   for (const marked of option.series.filter(series => series.markLine)) {
     assert.ok(option.series.filter(series => series.type === 'bar').every(bar => marked.markLine.z < bar.z));
-    assert.equal(marked.markLine.lineStyle.width, 1);
-    assert.equal(marked.markLine.lineStyle.opacity, 0.55);
+    assert.equal(marked.markLine.lineStyle.width, 1.5);
+    assert.equal(marked.markLine.lineStyle.opacity, 1);
   }
   assert.equal(option.yAxis[0].max({ max: 100 }), 1650);
   const tooltip = option.tooltip.formatter(option.series.map(series => ({ axisValue: '2026-11-21', seriesId: series.id, seriesName: series.name, value: series.data[0] })));
