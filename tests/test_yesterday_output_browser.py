@@ -12,8 +12,10 @@ from tests.test_api import production_payload
 def test_cards_show_yesterday_output_and_defects_with_live_status(ui_context, live_server, client, width, height):
     """验证卡片展示；参数为隔离浏览器、接口及尺寸；断言昨日数值、零空值和实时停机状态。"""
     yesterday = production_payload(client, '2026-11-20')
-    for line, actual, defect in zip(yesterday['lines'], [123.45, 0, None, 100], [1.25, 0, None, 2]):
+    for line, actual, defect in zip(yesterday['lines'], [19606.02, 0, None, 100], [4.86, 0, None, 2]):
         line.update(actual_qty=actual, defect_qty=defect)
+    # 补全昨日工时，使月累计运行率断言不受历史缺失工时影响。
+    yesterday['lines'][0].update(planned_hours=12, abnormal_hours=2)
     assert client.put('/api/production/2026-11-20', json=yesterday).status_code == 200
     today = production_payload(client)
     today['lines'][0].update(actual_qty=999, defect_qty=9, planned_hours=12, abnormal_hours=2)
@@ -31,8 +33,8 @@ def test_cards_show_yesterday_output_and_defects_with_live_status(ui_context, li
     expect(page.locator('#connectionStatus')).to_have_text('数据已同步')
     first = page.locator('.line-card[data-line-id="1"]')
     metrics = first.locator('.data-list > div')
-    expect(metrics.nth(1)).to_have_text('昨日产量（米）123.45')
-    expect(metrics.nth(3)).to_have_text('昨日报废1.25 米（1%）')
+    expect(metrics.nth(1)).to_have_text('昨日产量（米）19,606.02')
+    expect(metrics.nth(3)).to_have_text('昨日报废4.86 米（0.02%）')
     expect(first).to_have_attribute('data-state', 'maintenance')
     expect(metrics.last).to_contain_text('83.3%')
     second = page.locator('.line-card[data-line-id="2"] .data-list > div')
@@ -41,7 +43,7 @@ def test_cards_show_yesterday_output_and_defects_with_live_status(ui_context, li
     third = page.locator('.line-card[data-line-id="3"] .data-list > div')
     expect(third.nth(1)).to_have_text('昨日产量（件）—')
     expect(third.nth(3)).to_have_text('昨日不良—')
-    expect(page.locator('.line-card[data-line-id="4"] .data-list > div').nth(3)).to_have_text('昨日不良2 件（2%）')
+    expect(page.locator('.line-card[data-line-id="4"] .data-list > div').nth(3)).to_have_text('昨日不良2 件（2.00%）')
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     assert not errors, errors
     Path('output/playwright').mkdir(parents=True, exist_ok=True)

@@ -79,7 +79,8 @@
       // 昨日产量与报废使用同一业务日期，缺失保持为空，不能以更早的记录替代昨日。
       // 括号内仅展示昨日不良率，避免数量与百分比连读；缺失数量不附加单位。
       const defectText = (line.yesterday_defect_qty == null ? "—" : `${model.formatNumber(line.yesterday_defect_qty)} ${line.unit || "件"}`)
-        + (line.yesterday_defect_rate == null ? "" : `（${model.formatPercent(line.yesterday_defect_rate)}）`);
+        // 不良率固定保留两位小数，避免较小的非零比例被显示为 0%。
+        + (line.yesterday_defect_rate == null ? "" : `（${line.yesterday_defect_rate.toFixed(2)}%）`);
       list.append(metric("标准产量" + dailyUnit, model.formatNumber(line.standard_qty)), metric("昨日产量" + unit, model.formatNumber(line.yesterday_qty)),
         metric("本月产量" + unit, model.formatNumber(line.monthly_qty)), metric(line.unit === "米" ? "昨日报废" : "昨日不良", defectText, line.yesterday_defect_qty > 0));
       const rate = line.runtime_rate == null ? "" : " " + model.formatPercent(line.runtime_rate);
