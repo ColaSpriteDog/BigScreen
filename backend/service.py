@@ -9,7 +9,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from . import audit
 
 from .domain import (LINE_STATUSES, STATUS_LABELS, STOP_KINDS, ValidationError, line_availability,
-                     number, parse_date, parse_month, production_oee_issues, ratio, text)
+                     number, parallel_line_count, parse_date, parse_month, planned_equipment_hours,
+                     production_oee_issues, ratio, text)
 
 
 class ConflictError(ValueError):
@@ -95,6 +96,7 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True, productio
     lines = rows(db, "SELECT * FROM production_line ORDER BY sort_order")
     for line in lines:
         line["unit"] = production_unit(line["id"])
+        line["parallel_units"] = parallel_line_count(line["id"])
         line.update(actual_qty=output.get(line["id"], {}).get("actual_qty"),
                     defect_qty=output.get(line["id"], {}).get("defect_qty"),
                     planned_hours=output.get(line["id"], {}).get("planned_hours", 24),
@@ -102,7 +104,7 @@ def editor_snapshot(db, now, day=None, month=None, include_audit=True, productio
                     ideal_cycle_hours=1 / line["theoretical_max_per_hour"] if line["theoretical_max_per_hour"] else None)
         # 状态始终读取当前配置，时间开动率只读取所选日期的日报工时。
         line.update(status=line["manual_status"], status_label=STATUS_LABELS[line["manual_status"]],
-                    runtime_rate=line_availability(line["planned_hours"], line["abnormal_hours"]))
+                    runtime_rate=line_availability(line["planned_hours"], line["abnormal_hours"], line["id"]))
     overview = rows(db, "SELECT * FROM daily_overview WHERE work_date=?", (day,))
     sale = rows(db, "SELECT * FROM sales_month WHERE month=?", (month,))
     result = {
@@ -232,6 +234,8 @@ def dashboard_snapshot(db, now):
         line["monthly_qty"] = monthly.get(line["id"])
         hours = monthly_hours.get(line["id"], {})
         planned, abnormal = hours.get("planned_hours"), hours.get("abnormal_hours")
+        # 月累计计划与停机均使用设备总工时，点焊的单线计划需计入三条并行线。
+        planned = planned_equipment_hours(planned, line["id"]) if planned is not None else None
         line["monthly_planned_hours"] = planned
         line["monthly_abnormal_hours"] = abnormal
         # 月累计可能超过二十四小时，直接按累计工时计算，不平均各日百分比；缺项不推断为零。
@@ -348,7 +352,7 @@ def save_production(db, payload, day, now):
         if defects is not None and (actual is None or defects > actual):
             raise ValidationError("不良数量不能大于实际产量，且必须先填写实际产量")
         abnormal = number(item.get("abnormal_hours", previous[item["id"]]["abnormal_hours"] if item["id"] in previous else None),
-                          "异常停机工时", optional=True, maximum=planned_hours)
+                          "异常停机工时", optional=True, maximum=planned_equipment_hours(planned_hours, item["id"]))
         validate_production_timing(item["id"], day, actual, planned_hours, abnormal)
         # 旧版导入节拍只保留原始记录；当前 OEE 从产线理论小时产能计算，不接受日报改写基准。
         cycle = previous[item["id"]]["ideal_cycle_hours"] if item["id"] in previous else None
@@ -495,7 +499,7 @@ def save_production_import(db, payload, month, now):
         previous = db.execute("SELECT * FROM production_daily WHERE work_date=? AND line_id=?", (day, identifier)).fetchone()
         hours = number(item.get("planned_hours", previous["planned_hours"] if previous else 24), "计划生产工时", maximum=24)
         abnormal = number(item.get("abnormal_hours", previous["abnormal_hours"] if previous else None),
-                          "异常停机工时", optional=True, maximum=hours)
+                          "异常停机工时", optional=True, maximum=planned_equipment_hours(hours, identifier))
         validate_production_timing(identifier, day, actual, hours, abnormal)
         # 历史导入节拍仅留档，OEE 统一使用产线配置的理论小时产能，忽略客户端节拍。
         cycle = previous["ideal_cycle_hours"] if previous else None

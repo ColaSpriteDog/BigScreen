@@ -4,7 +4,7 @@ from calendar import monthrange
 from decimal import Decimal, ROUND_HALF_UP
 import re
 
-from .domain import ValidationError, parse_month
+from .domain import ValidationError, parse_month, planned_equipment_hours
 from .inventory_import import INVALID_CELL, cell_text, parse_excel_sheet, stock_number
 
 
@@ -92,8 +92,14 @@ def parse_daily_hours(data, day, identifier, sheet, formula_cells, number_format
                 # 仅已录入产量且停机行存在时，空白明细按无停机处理；缓存错误仍由 hours 拦截。
                 stops.append(hours(row) or 0)
             total = float(sum(Decimal(str(value)) for value in stops))
-            if total > 24 or (planned is not None and total > planned + 1e-8):
+            # 点焊按三条并行线累计设备工时，不能与单线一天的计划工时比较。
+            capacity = planned_equipment_hours(planned if planned is not None else 24, identifier)
+            if total > capacity + 1e-8:
                 raise ValidationError(f"“{sheet}”第 {day} 日异常停机合计超过计划工时，请核对停机明细")
+            # 白夜班按同一机器人配对，防止单台全天停机超限被其他两台的空闲额度掩盖。
+            if identifier == 2 and any(stops[index] + stops[index + 3] > (planned if planned is not None else 24) + 1e-8
+                                       for index in range(3)):
+                raise ValidationError(f"“{sheet}”第 {day} 日单条点焊线异常停机超过计划工时，请核对停机明细")
             # 源计划工时异常时仍提取有效停机值；保存时按保留的计划工时再次校验。
             abnormal = total
         elif planned is not None:

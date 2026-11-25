@@ -26,7 +26,9 @@ def test_cutting_and_spot_welding_stops_are_imported(client, identifier, values,
     assert client.post('/api/production/2026-11/import', json=data).status_code == 200
     line = client.get('/api/dashboard').get_json()['lines'][identifier - 1]
     assert line['monthly_abnormal_hours'] == expected
-    assert line['runtime_rate'] == (20 - expected) / 20 * 100
+    planned = 60 if identifier == 2 else 20
+    assert line['monthly_planned_hours'] == planned
+    assert line['runtime_rate'] == round((planned - expected) / planned * 100, 2)
 
 
 @pytest.mark.parametrize('identifier', [1, 2])
@@ -82,7 +84,7 @@ def test_real_file_import_restores_both_monthly_runtime_rates(client):
     lines = client.get('/api/dashboard').get_json()['lines']
     assert lines[0]['monthly_abnormal_hours'] == 12 and lines[0]['runtime_rate'] == 96.32
     assert lines[1]['monthly_abnormal_hours'] == pytest.approx(68 + 2 / 3)
-    assert lines[1]['monthly_planned_hours'] == 330 and lines[1]['runtime_rate'] == 79.19
+    assert lines[1]['monthly_planned_hours'] == 990 and lines[1]['runtime_rate'] == 93.06
 
 
 @pytest.mark.parametrize('day,formulas,formats,expected', [

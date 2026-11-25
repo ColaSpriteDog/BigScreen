@@ -138,6 +138,8 @@
       },
     },
     methods: {
+      /** 读取设备总计划工时；row 为日报草稿；返回异常停机输入上限，与后端并行线口径一致。 */
+      plannedEquipmentHours(row) { return BoardModel.plannedEquipmentHours(row); },
       /** 读取字段提示；row/field 定位当前日报输入；返回问题或空值。 */
       productionFieldIssue(row, field) { return this.currentProductionIssues.find(issue => issue.line_id === row.id && issue.field === field); },
       /** 定位问题字段；issue 为日期、产线及字段信息；返回跳转 Promise，沿用已有草稿保护。 */

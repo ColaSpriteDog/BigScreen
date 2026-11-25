@@ -2,6 +2,18 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const model = require('../../static/js/model.js');
 
+test('点焊三条并行线共用单线计划，停机按设备总工时校验且保留空白', () => {
+  const line = { id: 2, name: '点焊线', parallel_units: 3, actual_qty: 839, planned_hours: 20.4, abnormal_hours: 27.75 };
+  assert.ok(Math.abs(model.plannedEquipmentHours(line) - 61.2) < 1e-8);
+  assert.deepEqual(model.productionIssues(line, '2026-11-19'), []);
+  assert.ok(model.productionIssues({ ...line, abnormal_hours: 62 }, '2026-11-19').some(issue => issue.severity === 'error'));
+  assert.ok(model.productionIssues({ ...line, abnormal_hours: model.plannedEquipmentHours(line) }, '2026-11-19').some(issue => issue.severity === 'error'));
+  assert.deepEqual(model.productionIssues({ ...line, actual_qty: 0, abnormal_hours: model.plannedEquipmentHours(line) }, '2026-11-19'), []);
+  assert.equal(model.plannedEquipmentHours({ ...line, planned_hours: null }), null);
+  assert.equal(model.plannedEquipmentHours({ ...line, planned_hours: '' }), '');
+  assert.equal(model.plannedEquipmentHours({ ...line, parallel_units: 1 }), 20.4);
+});
+
 test('日报矛盾即时拦截，OEE 缺项保留未知值，零产量全天停机有效', () => {
   const line = { id: 4, name: 'B线', actual_qty: 510, defect_qty: 0, planned_hours: 20.4, abnormal_hours: 20.4, theoretical_max_per_hour: 60 };
   assert.ok(model.productionIssues(line, '2026-11-24').some(issue => issue.severity === 'error' && issue.field === 'abnormal_hours'));

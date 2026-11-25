@@ -38,10 +38,16 @@ const BoardModel = (() => {
     return Math.max(1, range.max);
   }
 
+  /** 计算设备总计划工时；line 为含单线计划及并行数量的日报；返回总小时数，未填计划时保留空值。 */
+  function plannedEquipmentHours(line) {
+    return line.planned_hours == null || line.planned_hours === "" ? line.planned_hours
+      : Number((line.planned_hours * (line.parallel_units ?? 1)).toPrecision(12));
+  }
+
   /** 检查填写中的日报；line 为产线草稿、day 为日期；返回可定位的问题，缺项不自动补零。 */
   function productionIssues(line, day) {
     if (line.actual_qty == null || line.actual_qty === "") return [];
-    const actual = Number(line.actual_qty), planned = line.planned_hours, abnormal = line.abnormal_hours;
+    const actual = Number(line.actual_qty), planned = plannedEquipmentHours(line), abnormal = line.abnormal_hours;
     const issues = [];
     const add = (field, message, severity = "warning") => issues.push({ date: day, line_id: line.id, name: line.name, field, message, severity });
     if (planned == null || planned === "") add("planned_hours", "请填写计划生产时长。", "error");
@@ -208,7 +214,7 @@ const BoardModel = (() => {
     };
   }
 
-  return Object.freeze({ formatNumber, unitLabel, weightTonnes, weightKilograms, formatPercent, inventorySummary, productionIssues, trendColor, trendGroups, buildTrendOption, buildShipmentOption });
+  return Object.freeze({ formatNumber, unitLabel, weightTonnes, weightKilograms, formatPercent, inventorySummary, plannedEquipmentHours, productionIssues, trendColor, trendGroups, buildTrendOption, buildShipmentOption });
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = BoardModel;

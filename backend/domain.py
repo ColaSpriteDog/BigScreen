@@ -1,6 +1,7 @@
 """时间区间与数据校验规则，不依赖网页或数据库。"""
 
 from datetime import datetime, time, timedelta, timezone
+from decimal import Decimal
 import math
 import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -97,9 +98,21 @@ def ratio(numerator, denominator):
     return round(numerator / denominator * 100, 2)
 
 
+def parallel_line_count(line_id):
+    """读取并行线数量；line_id 为固定产线标识；返回点焊 R4/R5/R6 的三条线或其他产线的一条线。"""
+    return 3 if line_id == 2 else 1
+
+
+def planned_equipment_hours(planned_hours, line_id):
+    """换算设备总计划；参数为单线计划小时与产线标识；返回精确小数换算后的总小时，避免边界浮点误差。"""
+    return float(Decimal(str(planned_hours)) * parallel_line_count(line_id))
+
+
 def production_oee_issues(line, day):
     """检查日报完整性；line 为含产能的产线日报，day 为日期；返回可定位的字段问题及错误级别。"""
     actual, planned, abnormal = line.get("actual_qty"), line.get("planned_hours"), line.get("abnormal_hours")
+    # 计划工时按单线填写，点焊停机为三条并行线合计，校验前统一为设备总工时。
+    planned = planned_equipment_hours(planned, line["id"]) if planned is not None else None
     if actual is None:
         return []
     issues = []
@@ -128,8 +141,9 @@ def production_oee_issues(line, day):
     return issues
 
 
-def line_availability(planned_hours, abnormal_hours):
-    """计算日报时间开动率；参数为计划与异常停机小时；返回百分比，缺少停机记录或无计划时返回空值。"""
+def line_availability(planned_hours, abnormal_hours, line_id=None):
+    """计算日报时间开动率；参数为单线计划、合计停机及产线标识；返回百分比，缺少停机或无计划时为空。"""
     planned = number(planned_hours, "计划生产时长", maximum=24)
+    planned = planned_equipment_hours(planned, line_id)
     abnormal = number(abnormal_hours, "异常停机工时", optional=True, maximum=planned)
     return ratio(planned - abnormal, planned) if abnormal is not None else None
