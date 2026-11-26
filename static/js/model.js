@@ -101,7 +101,8 @@ const BoardModel = (() => {
           // A 线数值置于柱顶，其余产线保留柱内数值，密集时隐藏重叠文字。
           label: { show: true, position: item.line_id === 3 ? "top" : "inside", distance: 6, color: "#f2f7fb", fontSize: compact ? 9 : 11,
             textBorderColor: "#07141c", textBorderWidth: 2,
-            formatter: params => params.value > 0 ? formatNumber(params.value) : "" },
+            // 产量标签去掉千分位逗号，缩短文字宽度并保留原有数值精度。
+            formatter: params => params.value > 0 ? formatNumber(params.value).replace(/,/g, "") : "" },
           // 当前 ECharts 将标准线固定绘制在第 5 层，柱体及数值需位于其上方。
           labelLayout: { hideOverlap: true }, itemStyle: { color: item.color }, z: 6,
       })),

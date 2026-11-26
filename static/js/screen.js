@@ -54,30 +54,32 @@
   /** 创建产线字段；label 为标题、value 为展示值、warning 为告警样式；返回字段行。 */
   function metric(label, value, warning = false) {
     const row = node("div");
-    row.append(document.createTextNode(label), node("span", warning ? "val warn" : "val", value));
+    // 标题使用独立节点，缩小标题字号时保留数值的原有字号与强调层级。
+    row.append(node("span", "metric-label", label), node("span", warning ? "val warn" : "val", value));
     row.title = value;
     return row;
   }
 
-  /** 适配产线数值宽度；无参数；仅缩小超宽数值至最低 10px，无返回值，保留标签和同行布局。 */
-  function fitLineMetrics() {
-    const values = [...document.querySelectorAll("#lineCards .val")];
-    // 先恢复样式字号，窗口放大或数值变短后可以恢复原有强调层级。
-    for (const value of values) value.style.fontSize = "";
-    const sizes = values.map(value => {
-      const available = value.getBoundingClientRect().width;
-      // 文本范围保留小数像素，避免 scrollWidth 取整后误判可见、实际仍触发省略号。
+  /** 格式化产线数量；value 为原始数量、line 为产线信息；返回展示文本，仅落料线米数截去小数，缺失保持为空。 */
+  function lineQuantity(value, line) {
+    // 固定产线标识不受名称修改影响；仅调整卡片显示，不改变原始数据和百分比。
+    const integerMetres = line.id === 1 && line.unit === "米";
+    return model.formatNumber(integerMetres && value != null ? Math.trunc(value) : value);
+  }
+
+  /** 对齐落料线指标；无参数；优先共用列宽，仅在数值溢出时借用第二行空白，无返回值且不修改字号。 */
+  function fitLineLayout() {
+    const list = document.querySelector('.line-card[data-line-id="1"] .data-list');
+    if (!list) return;
+    // 每次从对齐布局重新测量，窗口放大或数值变短后可自动恢复列对齐。
+    list.classList.remove("is-compact");
+    const overflow = [...list.children].slice(0, 4).some(row => {
+      const value = row.querySelector(".val");
       const range = document.createRange();
       range.selectNodeContents(value);
-      const required = range.getBoundingClientRect().width;
-      const original = parseFloat(getComputedStyle(value).fontSize);
-      return required > available && available > 0
-        ? Math.max(10, Math.floor(original * Math.max(0, available - 1) / required * 10) / 10) : null;
+      return range.getBoundingClientRect().width > value.getBoundingClientRect().width + 0.1;
     });
-    // 集中读写布局，避免每个字段交替测量和修改导致反复回流。
-    values.forEach((value, index) => {
-      if (sizes[index] !== null) value.style.fontSize = `${sizes[index]}px`;
-    });
+    list.classList.toggle("is-compact", overflow);
   }
 
   /** 展示四条产线；lines 为后端结果；无返回值，运行状态来自配置，运行率来自本月累计工时。 */
@@ -100,11 +102,12 @@
       const dailyUnit = model.unitLabel((line.unit || "件") + "/天");
       // 昨日产量与报废使用同一业务日期，缺失保持为空，不能以更早的记录替代昨日。
       // 括号内仅展示昨日不良率，避免数量与百分比连读；缺失数量不附加单位。
+      // 报废数量保留最多两位小数，避免小额报废被截为零；产量仍按整数显示。
       const defectText = (line.yesterday_defect_qty == null ? "—" : `${model.formatNumber(line.yesterday_defect_qty)} ${line.unit || "件"}`)
         // 不良率固定保留两位小数，避免较小的非零比例被显示为 0%。
         + (line.yesterday_defect_rate == null ? "" : `（${line.yesterday_defect_rate.toFixed(2)}%）`);
-      list.append(metric("标准产量" + dailyUnit, model.formatNumber(line.standard_qty)), metric("昨日产量" + unit, model.formatNumber(line.yesterday_qty)),
-        metric("本月产量" + unit, model.formatNumber(line.monthly_qty)), metric(line.unit === "米" ? "昨日报废" : "昨日不良", defectText, line.yesterday_defect_qty > 0));
+      list.append(metric("标准产量" + dailyUnit, lineQuantity(line.standard_qty, line)), metric("昨日产量" + unit, lineQuantity(line.yesterday_qty, line)),
+        metric("本月产量" + unit, lineQuantity(line.monthly_qty, line)), metric(line.unit === "米" ? "昨日报废" : "昨日不良", defectText, line.yesterday_defect_qty > 0));
       const rate = line.runtime_rate == null ? "" : " " + model.formatPercent(line.runtime_rate);
       const status = metric("运行状态（月）", line.status_label + rate);
       status.lastElementChild.classList.add("line-state");
@@ -119,7 +122,7 @@
       return card;
     });
     document.getElementById("lineCards").replaceChildren(...cards);
-    fitLineMetrics();
+    fitLineLayout();
   }
 
   /** 创建库存数值单元格；value 为数量、digits 为最多小数位、className 为业务样式；返回数字单元格，单位显示在表头。 */
@@ -149,7 +152,7 @@
 
   /** 更新库存表头；id 为行标识，before/after 为固定字段，units 为单位列；返回完整列配置。 */
   function inventoryHeader(id, before, units, after = []) {
-    const columns = [...before, ...units.map(unit => ({ label: "剩余数量" + model.unitLabel(unit), className: "material-number stock-heading", width: 26 })), ...after];
+    const columns = [...before, ...units.map(unit => ({ label: "剩余数量" + model.unitLabel(unit), className: "material-number stock-heading", width: 31 })), ...after];
     document.getElementById(id).replaceChildren(...columns.map(column => {
       const heading = node("th", column.className || "");
       // 单位紧跟字段名称显示，使用较小字号保持表头单行。
@@ -195,11 +198,12 @@
     const rawUnits = inventoryUnits(inventory.raw);
     const semiUnits = inventoryUnits(inventory.semi);
     const rawColumns = inventoryHeader("rawTableHeader", [
-      { label: "产品名称", width: 18 }, { label: "规格型号", width: 30 },
+      // 产品名称分配更多宽度，减少长名称拆行，带单位的数量表头继续保持单行。
+      { label: "产品名称", width: 24 }, { label: "规格型号", width: 25 },
     ], rawUnits, [
       { label: "重量（吨）", className: "material-number", width: 22 },
-      // 缩窄余量列后将空间留给可切件数，保持单一单位时表格总权重不变。
-      { label: "可切（件）", className: "material-number", width: 26 },
+      // 可切列兼顾单行表头与六位件数，单一单位时总列宽权重保持不变。
+      { label: "可切（件）", className: "material-number", width: 24 },
     ]);
     const totalWidth = rawColumns.reduce((sum, column) => sum + column.width, 0);
     document.getElementById("rawTableColumns").replaceChildren(...rawColumns.map(column => {
@@ -431,10 +435,10 @@
   const observer = new ResizeObserver(resizeCharts);
   observer.observe(document.getElementById("newTrendChart"));
   observer.observe(document.getElementById("shipmentChart"));
-  // 产线独立监听尺寸及字体加载，兼容现场缩放与备用字体切换。
-  const lineObserver = new ResizeObserver(fitLineMetrics);
+  // 仅观察卡片区域，尺寸和字体加载变化后重新判断是否能共用对齐列。
+  const lineObserver = new ResizeObserver(fitLineLayout);
   lineObserver.observe(document.getElementById("lineCards"));
-  document.fonts.ready.then(fitLineMetrics);
+  document.fonts.ready.then(fitLineLayout);
   if (typeof BroadcastChannel !== "undefined") {
     const channel = new BroadcastChannel("bigscreen-data");
     channel.onmessage = refresh;

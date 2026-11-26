@@ -37,15 +37,22 @@
         .symbol-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
         /* 同一行的左右字段共享文字基线，避免昨日产量的大字号数值撑偏标题。 */
         .data-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: baseline; gap: 5px 12px; color: var(--text-sub); font-size: 12px; }
+        /* 落料线左列按完整内容分配宽度，避免标准产量被等分列挤出省略号。 */
+        .line-card[data-line-id="1"] .data-list { grid-template-columns: max-content minmax(0, 1fr); }
+        /* 仅在共用列宽放不下数值时借用第二行空白，宽度充足时两行保持列对齐。 */
+        .line-card[data-line-id="1"] .data-list.is-compact > div:nth-child(3) { width: max-content; }
+        .line-card[data-line-id="1"] .data-list.is-compact > div:nth-child(4) { width: max-content; justify-self: end; }
         .data-list > div { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; white-space: nowrap; }
         .data-list > div:last-child { grid-column: 1 / -1; margin-top: 3px; }
+        /* 字段标题统一比基础字号小 1px，为数值留出空间且保持四张卡片一致。 */
+        .data-list .metric-label { font-size: calc(1em - 1px); flex-shrink: 0; }
         .data-list .val { color: var(--text-strong); font-weight: 700; font-family: var(--font-number); font-variant-numeric: tabular-nums; }
         .data-list > div:nth-child(2) .val { color: var(--green); font-size: 16px; }
         .data-list .warn { color: var(--orange); }
         /* 较窄屏幕收紧横向留白，为米制产量和报废比例保留空间，维持原有同行布局。 */
         @media (max-width: 1599px) {
             .row-top .line-card { padding-inline: 8px; }
-            .line-card .data-list { column-gap: 6px; }
+            .line-card .data-list { column-gap: 4px; }
         }
         .progress-bar { height: 4px; margin-top: 6px; background: var(--surface-raised); border-radius: 3px; overflow: hidden; }
         .progress-inner { height: 100%; width: 96%; background: var(--green); border-radius: inherit; }
@@ -291,7 +298,7 @@
 .chart-legend .legend-label { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 700px) { .chart-title { grid-template-columns: minmax(0, 1fr); } .trend-total { grid-column: 1; grid-row: 2; } .chart-legend { grid-row: 3; } }
 
-/* 桌面左右区域与顶部第一、第四条产线共享四等分网格。 */
+/* 桌面左右区域与顶部第一、第四条产线保持边界对齐。 */
 .inventory-panel { padding-left: 10px; padding-right: 10px; }
 .material-table th, .material-table td { padding-left: 2px; padding-right: 2px; }
 /* 原材料与半成品共用库存表字号，随屏幕尺寸同步调整。 */
@@ -316,6 +323,17 @@
     .inv-table { --inventory-header-height: 34px; }
     .inv-table th { padding-block: 6px; }
     .inv-table td { height: 38px; padding-block: 8px; }
+}
+
+/* 窄桌面上下区域共用四等分网格，保证四张产线卡片等宽且边界对齐。 */
+@media (min-width: 1201px) and (max-width: 1599px) {
+    .main-container, .row-top { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    /* 点焊线左列按内容占宽，将剩余空间留给昨日小数产量，避免数值裁切。 */
+    .line-card[data-line-id="2"] .data-list { grid-template-columns: max-content minmax(0, 1fr); }
+    .inv-table { --inventory-header-height: 34px; }
+    .material-table th, .material-table td { padding-inline: 4px; }
+    /* 两张库存表同步缩小表头字号，保留既有列宽和留白，完整显示单位括号。 */
+    .inv-table th { font-size: 10px; }
 }
 
 /* 动态仅用于工序间的连接线；节点、图片和文字保持稳定。 */
