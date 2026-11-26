@@ -48,3 +48,52 @@ def test_cards_show_yesterday_output_and_defects_with_live_status(ui_context, li
     assert not errors, errors
     Path('output/playwright').mkdir(parents=True, exist_ok=True)
     page.screenshot(path=f'output/playwright/yesterday-output-{width}.png', full_page=width < 1201)
+
+
+@pytest.mark.parametrize('font', [None, 'Consolas', 'monospace'])
+def test_line_metrics_remain_visible_with_decimal_values(ui_context, live_server, client, font):
+    """验证现场长数值；参数为浏览器、服务、客户端及字体；断言小数和比例完整，缩放后仍保持原布局。"""
+    dashboard = client.get('/api/dashboard').get_json()
+    dashboard['lines'][0].update(standard_qty=20000.44, yesterday_qty=20530.44,
+                                 monthly_qty=424222.22, yesterday_defect_qty=20.76,
+                                 yesterday_defect_rate=0.1)
+    page = ui_context.new_page()
+    errors = []
+    page.on('pageerror', lambda error: errors.append(str(error)))
+    page.route('**/api/dashboard', lambda route: route.fulfill(json=dashboard))
+    if font:
+        stylesheet = Path('static/css/screen.css').read_text(encoding='utf-8')
+        page.route('**/static/css/screen.css?*', lambda route: route.fulfill(
+            body=stylesheet + f'\n:root {{ --font-number: {font}; }}', content_type='text/css'))
+    page.goto(live_server + '/screen')
+    expect(page.locator('#connectionStatus')).to_have_text('数据已同步')
+    first = page.locator('.line-card[data-line-id="1"]')
+    expect(first.locator('.val').nth(1)).to_have_text('20,530.44')
+    expect(first.locator('.val').nth(3)).to_have_text('20.76 米（0.10%）')
+    # 在现场分辨率、宽屏和手机间往返，验证重新测量和恢复字号，而不只核对 DOM 文本。
+    for width, height in [(1440, 720), (1920, 1080), (375, 812), (1440, 720)]:
+        page.set_viewport_size({'width': width, 'height': height})
+        page.wait_for_function("""() => [...document.querySelectorAll('#lineCards .val')].every(value => {
+          const range = document.createRange();
+          range.selectNodeContents(value);
+          return range.getBoundingClientRect().width <= value.getBoundingClientRect().width
+            && parseFloat(getComputedStyle(value).fontSize) >= 10;
+        })
+        """, timeout=3000)
+        layout = first.evaluate("""card => [...card.querySelectorAll('.data-list > div')].map(row => {
+          const label = document.createRange();
+          label.selectNodeContents(row.firstChild);
+          const number = row.querySelector('.val').getBoundingClientRect();
+          const text = label.getBoundingClientRect();
+          return { gap: number.left - text.right, overlap: number.top < text.bottom && text.top < number.bottom };
+        })""")
+        assert all(item['gap'] >= 3 and item['overlap'] for item in layout), layout
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        if width == 1440:
+            tops = page.locator('.line-card').evaluate_all('(cards) => cards.map(card => card.getBoundingClientRect().top)')
+            assert max(tops) - min(tops) < 1
+        if width == 1920:
+            assert first.locator('.val').nth(1).evaluate('(value) => getComputedStyle(value).fontSize') == '20px'
+    assert not errors, errors
+    Path('output/playwright').mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=f'output/playwright/line-metrics-fit-{font or "default"}-1440.png')

@@ -42,6 +42,11 @@
         .data-list .val { color: var(--text-strong); font-weight: 700; font-family: var(--font-number); font-variant-numeric: tabular-nums; }
         .data-list > div:nth-child(2) .val { color: var(--green); font-size: 16px; }
         .data-list .warn { color: var(--orange); }
+        /* 较窄屏幕收紧横向留白，为米制产量和报废比例保留空间，维持原有同行布局。 */
+        @media (max-width: 1599px) {
+            .row-top .line-card { padding-inline: 8px; }
+            .line-card .data-list { column-gap: 6px; }
+        }
         .progress-bar { height: 4px; margin-top: 6px; background: var(--surface-raised); border-radius: 3px; overflow: hidden; }
         .progress-inner { height: 100%; width: 96%; background: var(--green); border-radius: inherit; }
         .progress-inner.warn { width: 91%; background: var(--orange); }

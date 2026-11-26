@@ -55,7 +55,29 @@
   function metric(label, value, warning = false) {
     const row = node("div");
     row.append(document.createTextNode(label), node("span", warning ? "val warn" : "val", value));
+    row.title = value;
     return row;
+  }
+
+  /** 适配产线数值宽度；无参数；仅缩小超宽数值至最低 10px，无返回值，保留标签和同行布局。 */
+  function fitLineMetrics() {
+    const values = [...document.querySelectorAll("#lineCards .val")];
+    // 先恢复样式字号，窗口放大或数值变短后可以恢复原有强调层级。
+    for (const value of values) value.style.fontSize = "";
+    const sizes = values.map(value => {
+      const available = value.getBoundingClientRect().width;
+      // 文本范围保留小数像素，避免 scrollWidth 取整后误判可见、实际仍触发省略号。
+      const range = document.createRange();
+      range.selectNodeContents(value);
+      const required = range.getBoundingClientRect().width;
+      const original = parseFloat(getComputedStyle(value).fontSize);
+      return required > available && available > 0
+        ? Math.max(10, Math.floor(original * Math.max(0, available - 1) / required * 10) / 10) : null;
+    });
+    // 集中读写布局，避免每个字段交替测量和修改导致反复回流。
+    values.forEach((value, index) => {
+      if (sizes[index] !== null) value.style.fontSize = `${sizes[index]}px`;
+    });
   }
 
   /** 展示四条产线；lines 为后端结果；无返回值，运行状态来自配置，运行率来自本月累计工时。 */
@@ -97,6 +119,7 @@
       return card;
     });
     document.getElementById("lineCards").replaceChildren(...cards);
+    fitLineMetrics();
   }
 
   /** 创建库存数值单元格；value 为数量、digits 为最多小数位、className 为业务样式；返回数字单元格，单位显示在表头。 */
@@ -408,6 +431,10 @@
   const observer = new ResizeObserver(resizeCharts);
   observer.observe(document.getElementById("newTrendChart"));
   observer.observe(document.getElementById("shipmentChart"));
+  // 产线独立监听尺寸及字体加载，兼容现场缩放与备用字体切换。
+  const lineObserver = new ResizeObserver(fitLineMetrics);
+  lineObserver.observe(document.getElementById("lineCards"));
+  document.fonts.ready.then(fitLineMetrics);
   if (typeof BroadcastChannel !== "undefined") {
     const channel = new BroadcastChannel("bigscreen-data");
     channel.onmessage = refresh;
