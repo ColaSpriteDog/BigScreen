@@ -54,11 +54,20 @@
           { value: "stopped", label: "停机" }, { value: "maintenance", label: "维护" }, { value: "fault", label: "故障" }],
         warehouseImport: null, warehouseDialogVisible: false, warehouseMonth: "",
         productionImport: null, productionDialogVisible: false, productionImportMonth: "", loadedProductionMonth: "",
-        productionImportSelection: [], productionOverwrite: false,
         sales: { order_qty: null, items: [] }, settingsForm: { timezone: "UTC", safety_start_date: null,
           show_logo: false, show_login_logo: true, show_sidebar_logo: true, lines: [], processes: [] } };
     },
     computed: {
+      /** 汇总整月同步预览；无参数；返回源日报与清空项，按日期和产线排序。 */
+      productionImportRows() {
+        return this.productionImport ? [...this.productionImport.items, ...this.productionImport.clear_items]
+          .sort((first, second) => first.date.localeCompare(second.date) || first.line_id - second.line_id) : [];
+      },
+      /** 统计整月同步变更；无参数；返回新增、更新、清空及不变条数的中文摘要。 */
+      productionImportSummary() {
+        return [["create", "新增"], ["update", "更新"], ["clear", "清空"], ["unchanged", "不变"]]
+          .map(([action, label]) => label + " " + this.productionImportRows.filter(row => row.action === action).length + " 条").join(" · ");
+      },
       /** 检查当前日报草稿；无参数；返回即时更新的错误和 OEE 缺项。 */
       currentProductionIssues() { return this.production.lines.flatMap(line => BoardModel.productionIssues(line, this.loadedDate)); },
       /** 合并本月问题与当前草稿；无参数；返回按日期产线排序的问题，修正当前行后立即移除旧提示。 */
@@ -442,16 +451,12 @@
         if (this.errorMessage) { await this.focusError(); return; }
         this.loading = true;
         this.productionImport = null;
-        this.productionImportSelection = [];
-        this.productionOverwrite = false;
         try {
           const body = new FormData();
           body.append("file", file);
           this.productionImport = { ...await BoardAPI.request("/api/production/" + this.productionImportMonth + "/preview",
             { method: "POST", formData: body, timeout: 120000 }), filename: file.name };
           this.productionDialogVisible = true;
-          await this.$nextTick();
-          this.$refs.productionImportTable?.toggleAllSelection();
         } catch (error) {
           if (error.status === 401) this.handleSessionExpired();
           this.errorMessage = error.message;
@@ -460,24 +465,22 @@
           if (this.errorMessage) await this.focusError();
         }
       },
-      /** 判断导入行是否可选；row 为预览记录；返回非未来日期可选，未来日期仅供查看。 */
-      productionImportSelectable(row) { return !row.future; },
-      /** 保存选择范围；rows 为预览勾选行；无返回值，提交时只写入这些日期和产线。 */
-      selectProductionImport(rows) { this.productionImportSelection = rows; },
-      /** 原子保存生产导入；无参数；返回 Promise，日报与标准一起提交，失败保留预览和选择。 */
+      /** 展示同步动作；row 为预览记录；返回新增、更新、清空或不变标签。 */
+      productionImportAction(row) { return { create: "新增", update: "更新", clear: "清空", unchanged: "不变" }[row.action]; },
+      /** 原子同步整月生产；无参数；返回 Promise，日报、清空项和标准一起提交，失败保留预览。 */
       async saveProductionImport() {
-        if (this.saving || !this.productionImport || !this.productionImportSelection.length) return;
+        if (this.saving || !this.productionImport) return;
         this.saving = true;
         this.errorMessage = "";
         try {
           const result = await BoardAPI.request("/api/production/" + this.productionImport.month + "/import", { method: "POST", body: {
-            version: this.productionImport.version, items: this.productionImportSelection,
-            standards: this.productionImport.standards, overwrite: this.productionOverwrite,
+            version: this.productionImport.version, items: this.productionImport.items,
+            standards: this.productionImport.standards, sync_month: true, clear_items: this.productionImport.clear_items,
           } });
           this.savedAt = result.updated_at;
           this.productionDialogVisible = false;
           BoardAPI.notifySaved();
-          ElementPlus.ElMessage.success("生产日报和标准产量已导入");
+          ElementPlus.ElMessage.success("整月生产日报和标准产量已同步");
           await this.loadModule("production");
         } catch (error) {
           if (error.status === 401) this.handleSessionExpired();

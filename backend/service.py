@@ -470,18 +470,34 @@ def validate_production_timing(identifier, day, actual, planned, abnormal):
         raise ValidationError(f"{day} {line['name']}：{errors[0]['message']}")
 
 
+def production_import_clear_items(db, month, items):
+    """查找整月同步清空项；db 为连接、month 为月份、items 为源日报；返回缺席且存在业务值的旧记录。"""
+    supplied = {(item["date"], item["line_id"]) for item in items}
+    # 默认空白占位不属于业务数据；自定义工时或停机即使没有产量也须列入清空预览。
+    existing = rows(db, "SELECT * FROM production_daily WHERE substr(work_date,1,7)=? "
+                    "AND (actual_qty IS NOT NULL OR defect_qty IS NOT NULL OR planned_hours<>24 "
+                    "OR abnormal_hours IS NOT NULL OR ideal_cycle_hours IS NOT NULL)", (month,))
+    return [{"date": item["work_date"], "line_id": item["line_id"], "action": "clear"}
+            for item in existing if (item["work_date"], item["line_id"]) not in supplied]
+
+
 def save_production_import(db, payload, month, now):
-    """原子导入月日报及标准；payload 为勾选记录与标准、month 为月份、now 为时间；返回写入条数，空字段保留旧值。"""
+    """原子导入月日报及标准；payload 含同步模式和已预览清空项、month 为月份、now 为时间；返回写入条数。"""
     parse_month(month)
     items = array_value(payload.get("items"), "导入日报", 124)
     standards = array_value(payload.get("standards"), "导入标准", 4)
     validate_line_ids(db, [{"id": item.get("line_id")} for item in standards])
+    sync_month = payload.get("sync_month", False)
+    if type(sync_month) is not bool:
+        raise ValidationError("整月同步必须为布尔值")
     overwrite = payload.get("overwrite", False)
     if type(overwrite) is not bool:
         raise ValidationError("覆盖已有数据必须为勾选值")
-    if not items:
+    if not items and not sync_month:
         raise ValidationError("请至少选择一条日报")
     today = now.astimezone(ZoneInfo(settings(db)["timezone"])).date().isoformat()
+    if sync_month and month > today[:7]:
+        raise ValidationError("不能同步未来月份的生产日报")
     seen = set()
     for item in items:
         identifier = number(item.get("line_id"), "产线ID", integer=True)
@@ -503,13 +519,13 @@ def save_production_import(db, payload, month, now):
         validate_production_timing(identifier, day, actual, hours, abnormal)
         # 历史导入节拍仅留档，OEE 统一使用产线配置的理论小时产能，忽略客户端节拍。
         cycle = previous["ideal_cycle_hours"] if previous else None
-        # 未填写报废时保留已有值；只有用户勾选覆盖才接受改变已录入数量。
+        # 整月同步以源数量为准；补充导入仍要求勾选覆盖，并保留空白报废的旧值。
         if previous is not None:
-            if not overwrite and any(new is not None and previous[field] is not None and new != previous[field]
+            if not sync_month and not overwrite and any(new is not None and previous[field] is not None and new != previous[field]
                                      for field, new in (("actual_qty", actual), ("defect_qty", defects),
                                                         ("planned_hours", hours), ("abnormal_hours", abnormal))):
                 raise ValidationError(f"{day} 产线 {identifier:02d} 已有不同数据，请核对预览并勾选覆盖")
-            if defects is None:
+            if defects is None and not sync_month:
                 defects = previous["defect_qty"]
         if defects is not None and defects > actual:
             raise ValidationError(f"{day} 产线 {identifier:02d} 不良数量大于实际产量")
@@ -522,6 +538,22 @@ def save_production_import(db, payload, month, now):
         identifier = item["line_id"]
         value = number(item.get("standard_qty"), "标准日产量", integer=identifier != 1)
         db.execute("UPDATE production_line SET standard_qty=? WHERE id=?", (value, identifier))
+    if sync_month:
+        # 只清空预览明确列出的记录；缺项、重复、跨月或源范围变化均使外层事务回滚。
+        clear_items = array_value(payload.get("clear_items"), "同步清空项", 124)
+        confirmed = set()
+        for item in clear_items:
+            day = item.get("date")
+            parse_date(day)
+            identifier = number(item.get("line_id"), "产线ID", integer=True)
+            if day[:7] != month or identifier not in {1, 2, 3, 4} or (day, identifier) in confirmed:
+                raise ValidationError("同步清空项无效，请重新预览")
+            confirmed.add((day, identifier))
+        expected = {(item["date"], item["line_id"]) for item in production_import_clear_items(db, month, items)}
+        if confirmed != expected:
+            raise ValidationError("整月同步范围与预览不一致，请重新预览")
+        for day, identifier in confirmed:
+            db.execute("DELETE FROM production_daily WHERE work_date=? AND line_id=?", (day, identifier))
     return len(items)
 
 

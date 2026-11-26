@@ -211,7 +211,7 @@ def create_app(configuration=None):
 
     @app.post("/api/production/<month>/preview")
     def production_preview(month):
-        """预览四线月日报；month 为目标月份、file 为上传；返回源值、旧值和冲突，不写库。"""
+        """预览四线月日报；month 为目标月份、file 为上传；返回源值、旧值、变更及整月清空项，不写库。"""
         request.max_content_length = MAX_FILE_BYTES + 1024 * 1024
         if request.content_length and request.content_length > request.max_content_length:
             raise ValidationError("Excel 文件不能超过 160 MiB")
@@ -231,9 +231,11 @@ def create_app(configuration=None):
             lines = {row["id"]: row["name"] for row in db.execute("SELECT id,name FROM production_line")}
             existing = {(row["work_date"], row["line_id"]): row for row in db.execute(
                 "SELECT * FROM production_daily WHERE substr(work_date,1,7)=?", (month,))}
-            for item in result["items"]:
+            result["clear_items"] = service.production_import_clear_items(db, month, result["items"])
+            for item in [*result["items"], *result["clear_items"]]:
                 previous = existing.get((item["date"], item["line_id"]))
                 item["name"] = lines[item["line_id"]]
+                item["unit"] = "米" if item["line_id"] == 1 else "件"
                 item["previous_actual"] = previous["actual_qty"] if previous is not None else None
                 item["previous_defect"] = previous["defect_qty"] if previous is not None else None
                 item["previous_hours"] = previous["planned_hours"] if previous is not None else None
@@ -241,13 +243,19 @@ def create_app(configuration=None):
                 item["conflict"] = previous is not None and any(item.get(field) is not None and previous[field] is not None
                     and item[field] != previous[field] for field in ("actual_qty", "defect_qty", "planned_hours", "abnormal_hours"))
                 item["future"] = item["date"] > today
+                if item.get("action") != "clear":
+                    # 空白报废在同步时会清空，计划工时解析异常仍沿用已有值并保留源警告。
+                    changed = previous is not None and any(
+                        item.get(field, previous[field]) != previous[field]
+                        for field in ("actual_qty", "defect_qty", "planned_hours", "abnormal_hours"))
+                    item["action"] = "create" if previous is None else "update" if changed else "unchanged"
             for item in result["standards"]:
                 item["name"] = lines[item["line_id"]]
         return jsonify(result)
 
     @app.post("/api/production/<month>/import")
     def production_import_write(month):
-        """保存勾选的月日报与文件标准；month 为月份；返回原子提交版本并记录当前录入人。"""
+        """保存月日报与文件标准；month 为月份；整月同步含预览清空项，返回原子提交版本并记录人员。"""
         return mutate(service.save_production_import, month)
 
     @app.post("/api/warehouse/<month>/preview")

@@ -194,6 +194,5 @@ def parse_production_file(upload, month):
             formula_cells=formulas, number_formats=formats)
         items.extend(result.pop("items"))
         standards.append(result)
-    if not items:
-        raise ValidationError("文件中没有已录入的实际产量")
+    # 完整模板即使全月为空也可预览，用于同步清空该月旧日报。
     return {"month": month, "items": sorted(items, key=lambda item: (item["date"], item["line_id"])), "standards": standards}

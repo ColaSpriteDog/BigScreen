@@ -11,7 +11,7 @@
   <script defer src="/static/vendor/element-plus-zh-cn.js"></script>
   <script defer src="/static/js/model.js?v=20261124-oee-guidance"></script>
   <script defer src="/static/js/api.js?v=20261123-import"></script>
-  <script defer src="/static/js/editor.js?v=20261124-manual-line-status"></script>
+  <script defer src="/static/js/editor.js?v=20261125-production-month-sync"></script>
 </head>
 <body>
   <div id="bootStatus" role="status">正在加载编辑页面…</div>
@@ -188,18 +188,18 @@
     <el-dialog v-model="productionDialogVisible" title="生产日报导入预览" class="inventory-import-dialog" width="min(1100px, calc(100vw - 24px))" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving">
       <template v-if="productionImport">
         <p class="import-source">{{productionImport.filename}} · {{productionImport.month}}</p>
-        <p class="import-source">C列为1日，按所选月份读取。白夜班工时按源表显示值相加；空白不覆盖已有记录，已有差异需勾选覆盖。</p>
+        <p class="import-source">整月同步：以表格为准，空白将清空所选月份对应日报，其他月份不受影响。C列为1日，白夜班工时按源表显示值相加。</p>
+        <p class="import-source" data-testid="production-import-summary">{{productionImportSummary}}</p>
         <el-table :data="productionImport.standards" size="small" data-testid="production-standard-preview"><el-table-column prop="name" label="产线"></el-table-column><el-table-column prop="unit" label="单位" width="80"></el-table-column><el-table-column prop="standard_qty" label="更新标准日产量" width="150"><template #default="scope">{{fmt(scope.row.standard_qty)}}</template></el-table-column></el-table>
-        <el-table ref="productionImportTable" :data="productionImport.items" max-height="300" :row-key="row=>row.date+'-'+row.line_id" @selection-change="selectProductionImport" data-testid="production-import-preview">
-          <el-table-column type="selection" width="45" :selectable="productionImportSelectable"></el-table-column><el-table-column prop="date" label="日期" width="115"></el-table-column><el-table-column prop="name" label="产线" min-width="145"></el-table-column><el-table-column prop="unit" label="单位" width="60"></el-table-column>
+        <el-table :data="productionImportRows" max-height="300" :row-key="row=>row.date+'-'+row.line_id" data-testid="production-import-preview">
+          <el-table-column label="变更" width="75"><template #default="scope"><el-tag :type="scope.row.action==='clear'?'danger':scope.row.action==='unchanged'?'info':'success'">{{productionImportAction(scope.row)}}</el-tag></template></el-table-column><el-table-column prop="date" label="日期" width="115"></el-table-column><el-table-column prop="name" label="产线" min-width="145"></el-table-column><el-table-column prop="unit" label="单位" width="60"></el-table-column>
           <el-table-column label="产量" min-width="110"><template #default="scope">{{fmt(scope.row.actual_qty)}}</template></el-table-column><el-table-column label="报废" min-width="90"><template #default="scope">{{fmt(scope.row.defect_qty)}}</template></el-table-column>
           <el-table-column label="工时（小时）" width="120"><template #default="scope">{{fmt(scope.row.planned_hours)}}</template></el-table-column><el-table-column label="异常停机（小时）" width="150"><template #default="scope">{{fmt(scope.row.abnormal_hours)}}</template></el-table-column>
-          <el-table-column label="已有产量 / 报废" min-width="140"><template #default="scope">{{fmt(scope.row.previous_actual)}} / {{fmt(scope.row.previous_defect)}}</template></el-table-column><el-table-column label="已有工时 / 停机" min-width="150"><template #default="scope">{{fmt(scope.row.previous_hours)}} / {{fmt(scope.row.previous_abnormal)}}</template></el-table-column><el-table-column label="状态" min-width="240"><template #default="scope">{{scope.row.warnings?.length?scope.row.warnings.join('；'):scope.row.future?'未来日期':scope.row.conflict?'存在差异':'可导入'}}</template></el-table-column>
+          <el-table-column label="已有产量 / 报废" min-width="140"><template #default="scope">{{fmt(scope.row.previous_actual)}} / {{fmt(scope.row.previous_defect)}}</template></el-table-column><el-table-column label="已有工时 / 停机" min-width="150"><template #default="scope">{{fmt(scope.row.previous_hours)}} / {{fmt(scope.row.previous_abnormal)}}</template></el-table-column><el-table-column label="状态" min-width="240"><template #default="scope">{{scope.row.action==='clear'?'将清空对应日报':scope.row.warnings?.length?scope.row.warnings.join('；'):scope.row.future?'未来日期':'可同步'}}</template></el-table-column>
         </el-table>
-        <el-checkbox v-model="productionOverwrite" :disabled="saving">覆盖所选记录中已有的不同数量和工时</el-checkbox>
         <el-alert v-if="errorMessage" :title="errorMessage" type="error" :closable="false"></el-alert>
       </template>
-      <template #footer><el-button @click="productionDialogVisible=false" :disabled="saving">取消</el-button><el-button type="primary" @click="saveProductionImport" :loading="saving" :disabled="!productionImportSelection.length" data-testid="save-production-import">导入并保存</el-button></template>
+      <template #footer><el-button @click="productionDialogVisible=false" :disabled="saving">取消</el-button><el-button type="primary" @click="saveProductionImport" :loading="saving" :disabled="!productionImport" data-testid="save-production-import">同步并保存</el-button></template>
     </el-dialog>
   </div>
   <noscript>编辑页面需要启用 JavaScript。</noscript>
