@@ -19,6 +19,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 CACHE = ROOT / "output" / "packaging"
+# 允许直接运行脚本时导入同仓库的展示程序制作模块。
+sys.path.insert(0, str(ROOT))
 # 下载固定版本并校验 SHA-256，避免静默使用变动的远程工具。
 DOWNLOADS = {
     "tools.innosetup.6.4.3.nupkg": (
@@ -188,6 +190,10 @@ def main():
         run([python, "-m", "PyInstaller", "--noconfirm", "--distpath", work / "dist",
              "--workpath", work / "freeze", HERE / "BigScreen.spec"], log)
         package = work / "dist" / "BigScreen"
+        from tools.display.build import build_client, prepare_offline_runtime
+        print("编译专用大屏窗口并准备 WebView2 离线运行库……", flush=True)
+        build_client(package, log)
+        prepare_offline_runtime(package, log)
         with zipfile.ZipFile(download("winsw.2.11.0.nupkg")) as source:
             (package / "BigScreen.Service.exe").write_bytes(source.read("lib/net461-full/WinSW.NET461.exe"))
         shutil.copy2(HERE / "BigScreen.Service.xml", package)
@@ -196,6 +202,10 @@ def main():
             encoding="utf-8-sig")
         (package / "启动.cmd").write_bytes(
             '@echo off\r\nchcp 65001 >nul\r\npushd "%~dp0"\r\n"%~dp0BigScreen.exe" %*\r\npopd\r\npause\r\n'.encode("utf-8"))
+        (package / "启动大屏.cmd").write_bytes(
+            '@echo off\r\nstart "" "%~dp0BigScreen.Display.exe" %*\r\n'.encode("utf-8"))
+        (package / "大屏设置.cmd").write_bytes(
+            '@echo off\r\nstart "" "%~dp0BigScreen.Display.exe" --configure\r\n'.encode("utf-8"))
         shutil.copy2(HERE / "客户使用说明.txt", package / "使用说明.txt")
         collect_licenses(python, package, log)
         print("验证离线程序：自选数据路径、登录读写、静态资源、重启和备份……", flush=True)
@@ -218,6 +228,7 @@ def main():
             "data_directory": "由安装向导选择；便携包默认使用程序旁的 data 目录",
             "verification": json.loads(smoke_result.read_text(encoding="utf-8")),
             "installer_test": "已编译；未在本机注册服务或修改防火墙，需在隔离 Windows 验证完整安装",
+            "display_test": "已编译并检查交付文件；客户 LED 多屏、登录后自启动和离线运行库安装需现场验收",
             "artifacts": [{"file": p.name, "bytes": p.stat().st_size, "sha256": sha256(p)} for p in artifacts],
         }
         (release / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

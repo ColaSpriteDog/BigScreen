@@ -23,6 +23,8 @@ MinVersion=10.0
 UninstallDisplayIcon={app}\BigScreen.exe
 CloseApplications=no
 RestartApplications=no
+; 升级和卸载前需由维护人员验证退出展示，避免守护进程持有旧文件。
+AppMutex=Local\BigScreen.Display.Running
 SetupLogging=yes
 VersionInfoVersion={#AppVersion}
 
@@ -32,20 +34,23 @@ Name: "chinesesimp"; MessagesFile: "{#LanguageFile}"
 [Tasks]
 Name: "firewall"; Description: "允许局域网设备访问（仅专用网络和域网络）"; Flags: checkedonce
 Name: "desktopicon"; Description: "创建桌面快捷方式"; Flags: unchecked
+Name: "displaystartup"; Description: "当前用户登录 Windows 后自动打开大屏展示"; Flags: unchecked
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "BigScreen.ini,BigScreen.Service.xml,*.cmd"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "BigScreen.Service.xml"; Flags: dontcopy
 
 [Icons]
-Name: "{group}\生产监控大屏"; Filename: "http://127.0.0.1:{code:GetPort}/screen"
+Name: "{group}\生产监控大屏"; Filename: "{app}\BigScreen.Display.exe"
+Name: "{group}\大屏展示设置"; Filename: "{app}\BigScreen.Display.exe"; Parameters: "--configure"
 Name: "{group}\数据编辑后台"; Filename: "http://127.0.0.1:{code:GetPort}/edit"
 Name: "{group}\使用说明"; Filename: "{app}\使用说明.txt"
 Name: "{group}\卸载 BigScreen"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\生产监控大屏"; Filename: "http://127.0.0.1:{code:GetPort}/screen"; Tasks: desktopicon
+Name: "{autodesktop}\生产监控大屏"; Filename: "{app}\BigScreen.Display.exe"; Tasks: desktopicon
+Name: "{userstartup}\BigScreen 大屏展示"; Filename: "{app}\BigScreen.Display.exe"; Tasks: displaystartup
 
 [Run]
-Filename: "http://127.0.0.1:{code:GetPort}/screen"; Description: "打开生产监控大屏"; Flags: postinstall shellexec skipifsilent runasoriginaluser
+Filename: "{app}\BigScreen.Display.exe"; Description: "打开生产监控大屏"; Flags: postinstall skipifsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "{app}\BigScreen.Service.exe"; Parameters: "stop"; Flags: runhidden waituntilterminated; RunOnceId: "StopBigScreen"
@@ -90,10 +95,26 @@ end;
 
 function InitializeSetup: Boolean;
 begin
-  { 无参数；返回当前系统是否满足离线服务所需的 .NET Framework 4.6.1。 }
-  Result := IsDotNetInstalled(net461, 0);
+  { 无参数；返回当前系统是否满足展示程序所需的 .NET Framework 4.6.2。 }
+  Result := IsDotNetInstalled(net462, 0);
   if not Result then
-    MsgBox('此安装包需要 .NET Framework 4.6.1 或以上版本。请先安装，建议使用 Windows 10/11。', mbError, MB_OK);
+    MsgBox('此安装包需要 .NET Framework 4.6.2 或以上版本。请先安装，建议使用 Windows 10/11。', mbError, MB_OK);
+end;
+
+procedure EnsureWebViewRuntime;
+var
+  ExitCode: Integer;
+  Version: String;
+begin
+  { 无参数；安装随包提供的微软离线内核，已有更新版本时保留现有版本，无返回值。 }
+  if RegQueryStringValue(HKLM32,
+      'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) then
+    if StrToIntDef(Copy(Version, 1, Pos('.', Version) - 1), 0) >= 131 then Exit;
+  if not Exec(ExpandConstant('{app}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe'),
+      '/silent /install', '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then
+    RaiseException('无法启动 WebView2 离线运行库安装程序。');
+  if (ExitCode <> 0) and (ExitCode <> 3010) then
+    RaiseException('WebView2 离线运行库安装失败，退出码 ' + IntToStr(ExitCode) + '。');
 end;
 
 procedure InitializeWizard;
@@ -202,6 +223,7 @@ var
 begin
   { CurStep 为安装阶段；复制后完成备份、外置配置、服务和防火墙设置，无返回值。 }
   if CurStep <> ssPostInstall then Exit;
+  EnsureWebViewRuntime;
   DataDir := GetDataDir;
   Database := AddBackslash(DataDir) + 'dashboard.sqlite3';
   if not ForceDirectories(DataDir) then RaiseException('无法创建数据目录：' + DataDir);

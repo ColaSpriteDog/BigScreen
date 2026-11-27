@@ -25,6 +25,11 @@ def verify(package, output):
     config = root / "BigScreen.ini"
     config.write_text(f"[server]\nport={port}\ndata_directory={data}\n", encoding="utf-8-sig")
     executable = package / "BigScreen.exe"
+    # 检查展示文件完整性；无桌面的打包验证不伪称完成 LED 界面验收。
+    for name in ["BigScreen.Display.exe", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll",
+                 "WebView2Loader.dll", "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"]:
+        with (package / name).open("rb") as stream:
+            assert stream.read(2) == b"MZ", f"展示交付文件缺失或损坏：{name}"
     environment = {k: v for k, v in os.environ.items() if k.upper() not in {"PYTHONPATH", "PYTHONHOME", "BIGSCREEN_DATABASE"}}
     environment["PATH"] = str(Path(os.environ["SystemRoot"]) / "System32")
     environment["PYTHONUTF8"] = "1"
@@ -98,7 +103,8 @@ def verify(package, output):
     assert not (package / "data").exists(), "验证数据不得写入交付目录"
     result = {"passed": True, "checked_at": datetime.now(timezone.utc).isoformat(),
               "checks": ["无 Python 路径运行", "中文及空格自选数据目录", "本地页面和资源", "空白新数据库",
-                         "登录和 API 写入", "服务重启后数据保留", "运行中 SQLite 在线备份及完整性"]}
+                         "登录和 API 写入", "服务重启后数据保留", "运行中 SQLite 在线备份及完整性",
+                         "专用展示程序、内核组件及离线运行库文件"]}
     output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print("离线程序验证通过", flush=True)
     return result
